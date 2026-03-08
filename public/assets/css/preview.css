@@ -1,0 +1,136 @@
+.container {
+    display: flex;
+    gap: 20px;
+}
+
+.left,
+.right {
+    width: 50%;
+    border: 1px solid #ccc;
+    padding: 15px;
+}
+
+.right {
+    background: #f7f7f7;
+}
+
+/* form element */
+input,
+select,
+textarea,
+button {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+}
+
+/* biar textarea ga aneh */
+textarea {
+    resize: vertical;
+}
+
+/* hidden helper */
+.hidden {
+    display: none;
+}
+
+.preview-img {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    margin-bottom: 10px;
+}
+
+.info-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* CENTER horizontal */
+    text-align: center; /* teks ikut center */
+    margin-bottom: 20px;
+}
+
+.logo {
+    max-width: 230px;
+    margin-bottom: 10px;
+}
+
+.info-text p {
+    margin-left: 300px;
+}
+
+/* PRINT STYLES */
+@media print {
+    /* ukuran kertas */
+    @page {
+        size: A4;
+        margin: 2cm;
+    }
+    body::before {
+        display: block;
+        text-align: center;
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 12px;
+    }
+    /* sembunyikan semua */
+    body * {
+        visibility: hidden;
+    }
+
+    /* tampilkan hanya preview */
+    .right,
+    .right * {
+        visibility: visible;
+    }
+
+    /* MATIKAN LAYOUT WEB */
+    .container {
+        display: block !important;
+    }
+
+    .left {
+        display: none !important;
+    }
+
+    /* RESET TOTAL STYLE RIGHT */
+    .right {
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: white !important;
+        box-shadow: none !important;
+    }
+
+    /* rapihin teks */
+    h4 {
+        margin: 10px 0 4px;
+        font-size: 14px;
+    }
+
+    p {
+        margin: 2px 0;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    hr {
+        margin: 8px 0;
+    }
+
+    /* logo */
+    .logo {
+        max-width: 140px;
+        display: block;
+        margin: 0 auto 10px auto;
+    }
+
+    /* hilangkan tombol */
+    .form-actions,
+    button {
+        display: none !important;
+    }
+}
