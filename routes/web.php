@@ -1,11 +1,13 @@
 <?php
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\SiswaController;
 
 Route::get('/', function () {
     // Kalau sudah login, redirect ke dashboard sesuai role
     if (auth()->check()) {
-        return match(auth()->user()->role) {
+        return match (auth()->user()->role) {
             'admin' => redirect()->route('admin.dashboard'),
             'guru'  => redirect()->route('guru.dashboard'),
             'siswa' => redirect()->route('siswa.dashboard'),
@@ -31,10 +33,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         return view('dashboard.admin');
     })->name('dashboard');
 
-    // Nanti tambah route admin lainnya di sini
-    // Route::resource('siswa', SiswaController::class);
-    // Route::resource('guru', GuruController::class);
-    // Route::resource('kategori', KategoriController::class);
+    Route::prefix('siswa')->name('siswa-data.')->group(function () {
+        Route::get('/',                 [SiswaController::class, 'index'])->name('index');
+        Route::get('/data',             [SiswaController::class, 'data'])->name('data');       // AJAX DataTable
+        Route::get('/{id}',             [SiswaController::class, 'show'])->name('show');       // AJAX detail
+        Route::post('/',                [SiswaController::class, 'store'])->name('store');
+        Route::put('/{id}',             [SiswaController::class, 'update'])->name('update');
+        Route::delete('/{id}',          [SiswaController::class, 'destroy'])->name('destroy');
+        Route::post('/import',          [SiswaController::class, 'import'])->name('import');
+        Route::get('/import/template',  [SiswaController::class, 'importTemplate'])->name('import.template');
+    });
 });
 
 // ─── GURU ─────────────────────────────────────────────────
