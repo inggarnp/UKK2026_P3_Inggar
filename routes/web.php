@@ -3,6 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\SiswaController;
+use App\Http\Controllers\KelasController;
+use App\Http\Controllers\JurusanController;
+use App\Http\Controllers\RuanganController;
 
 Route::get('/', function () {
     // Kalau sudah login, redirect ke dashboard sesuai role
@@ -42,6 +45,35 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         Route::delete('/{id}',          [SiswaController::class, 'destroy'])->name('destroy');
         Route::post('/import',          [SiswaController::class, 'import'])->name('import');
         Route::get('/import/template',  [SiswaController::class, 'importTemplate'])->name('import.template');
+    });
+
+    Route::prefix('kelas')->name('kelas.')->group(function () {
+        Route::get('/',        [KelasController::class, 'index'])->name('index');
+        Route::get('/data',    [KelasController::class, 'data'])->name('data');
+        Route::get('/jurusan', [KelasController::class, 'getJurusan'])->name('jurusan');
+        Route::get('/ruangan', [KelasController::class, 'getRuangan'])->name('ruangan');
+        Route::post('/',       [KelasController::class, 'store'])->name('store');
+        Route::get('/{id}',    [KelasController::class, 'show'])->name('show');
+        Route::put('/{id}',    [KelasController::class, 'update'])->name('update');
+        Route::delete('/{id}', [KelasController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('jurusan')->name('jurusan.')->group(function () {
+        Route::get('/',        [JurusanController::class, 'index'])->name('index');
+        Route::get('/data',    [JurusanController::class, 'data'])->name('data');
+        Route::post('/',       [JurusanController::class, 'store'])->name('store');
+        Route::get('/{id}',    [JurusanController::class, 'show'])->name('show');
+        Route::put('/{id}',    [JurusanController::class, 'update'])->name('update');
+        Route::delete('/{id}', [JurusanController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('ruangan')->name('ruangan.')->group(function () {
+        Route::get('/',        [RuanganController::class, 'index'])->name('index');
+        Route::get('/data',    [RuanganController::class, 'data'])->name('data');
+        Route::post('/',       [RuanganController::class, 'store'])->name('store');
+        Route::get('/{id}',    [RuanganController::class, 'show'])->name('show');
+        Route::put('/{id}',    [RuanganController::class, 'update'])->name('update');
+        Route::delete('/{id}', [RuanganController::class, 'destroy'])->name('destroy');
     });
 });
 

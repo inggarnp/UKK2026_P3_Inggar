@@ -2,11 +2,11 @@
 <div class="main-nav">
 
     @php
-        $dashboardRoute = match(auth()->user()->role) {
+        $dashboardRoute = match (auth()->user()->role) {
             'admin' => 'admin.dashboard',
-            'guru'  => 'guru.dashboard',
+            'guru' => 'guru.dashboard',
             'siswa' => 'siswa.dashboard',
-            default => 'login'
+            default => 'login',
         };
     @endphp
 
@@ -42,24 +42,43 @@
                 </a>
             </li>
 
-            @if(auth()->user()->role == 'admin')
+            @if (auth()->user()->role == 'admin')
+                {{-- Manajemen Warga --}}
+                <li class="nav-item">
+                    <a class="nav-link menu-arrow" href="#sidebarWarga" data-bs-toggle="collapse">
+                        <span class="nav-icon">
+                            <iconify-icon icon="solar:users-group-rounded-bold-duotone"></iconify-icon>
+                        </span>
+                        <span class="nav-text"> Manajemen User </span>
+                    </a>
+                    <div class="collapse" id="sidebarWarga">
+                        <ul class="nav sub-navbar-nav">
+                            <li class="sub-nav-item"><a class="sub-nav-link"
+                                    href="{{ route('admin.siswa-data.index') }}">Siswa</a></li>
+                        </ul>
+                    </div>
+                </li>
+            @endif
 
-            {{-- Manajemen Warga --}}
+            {{-- Manajemen Kelas --}}
             <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarWarga" data-bs-toggle="collapse">
+                <a class="nav-link menu-arrow" href="#sidebarKelas" data-bs-toggle="collapse">
                     <span class="nav-icon">
                         <iconify-icon icon="solar:users-group-rounded-bold-duotone"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Manajemen User </span>
+                    <span class="nav-text"> Manajemen Kategori </span>
                 </a>
-                <div class="collapse" id="sidebarWarga">
+                <div class="collapse" id="sidebarKelas">
                     <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item"><a class="sub-nav-link" href="{{ route('admin.siswa-data.index') }}">Siswa</a></li>
+                        <li class="sub-nav-item"><a class="sub-nav-link"
+                                href="{{ route('admin.kelas.index') }}">Kelas</a></li>
+                        <li class="sub-nav-item"><a class="sub-nav-link"
+                                href="{{ route('admin.jurusan.index') }}">Jurusan</a></li>
+                        <li class="sub-nav-item"><a class="sub-nav-link"
+                                href="{{ route('admin.ruangan.index') }}">Ruangan</a></li>
                     </ul>
                 </div>
             </li>
-
-            @endif
 
             <li class="menu-title mt-2">Other</li>
 
