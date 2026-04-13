@@ -19,7 +19,7 @@
                         <li>Format tanggal lahir: <strong>YYYY-MM-DD</strong> — contoh: 2006-05-15</li>
                         <li>Setiap baris akan otomatis membuat akun login untuk siswa</li>
                     </ul>
-                    <a href="{{ route('admin.siswa-data.import.template') }}" class="btn btn-sm btn-outline-info mt-1">
+                    <a href="{{ route('admin.siswa.import.template') }}" class="btn btn-sm btn-outline-info mt-1">
                         <i class="bx bx-download me-1"></i> Download Template Excel
                     </a>
                 </div>
