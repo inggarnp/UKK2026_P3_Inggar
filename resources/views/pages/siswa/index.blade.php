@@ -144,7 +144,7 @@ $('#perPageSelect').on('change', function() { perPage=$(this).val(); currentPage
 // ─── SHOW DETAIL ──────────────────────────────────────────
 function showSiswa(id) {
     $.get('{{ url("admin/siswa") }}/' + id, function(s) {
-        $('#show_foto').attr('src', s.foto || '{{ asset("assets/images/users/avatar-1.jpg") }}');
+        $('#show_foto').attr('src', s.foto || '{{ asset("assets/images/users/siswa/") }}');
         $('#show_nis').text(s.nis || '-');
         $('#show_nama').text(s.nama || '-');
         $('#show_kelas').text(s.kelas || '-');
@@ -308,7 +308,7 @@ function showToast(msg, type) {
 $(document).ready(function() {
     loadData();
 
-    // ✅ Fix tombol tambah — bind di ready
+    // fix tombol tambah — bind di ready
     $('#btnBukaTambahSiswa').on('click', function() {
         $('#addSiswaForm')[0].reset();
         $('#addSiswaError').addClass('d-none');

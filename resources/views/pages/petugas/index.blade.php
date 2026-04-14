@@ -178,7 +178,7 @@
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-4 text-center border-end">
-                        <img id="show_petugas_foto" src="{{ asset('assets/images/users/avatar-1.jpg') }}"
+                        <img id="show_petugas_foto" src="{{ asset('assets/images/users/petugas/') }}"
                             class="rounded-circle mb-3"
                             style="width:110px;height:110px;object-fit:cover;border:3px solid #dee2e6">
                         <p id="show_petugas_nama" class="fw-bold mb-1">-</p>
@@ -353,6 +353,21 @@
 
 @push('scripts')
 <script>
+// ─── Helper functions ──────────────────────────────────────
+function togglePassword(inputId, btn) {
+    let input = document.getElementById(inputId);
+    input.type = input.type === 'password' ? 'text' : 'password';
+    btn.innerHTML = input.type === 'password' ? '<i class="bx bx-hide"></i>' : '<i class="bx bx-show"></i>';
+}
+function previewFoto(input, previewId) {
+    let preview = document.getElementById(previewId);
+    if (input.files && input.files[0]) {
+        let reader = new FileReader();
+        reader.onload = e => { preview.src = e.target.result; preview.classList.remove('d-none'); };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
 const PETUGAS_URL  = '{{ route("admin.petugas.index") }}';
 const PETUGAS_DATA = '{{ route("admin.petugas.data") }}';
 const CSRF_P       = '{{ csrf_token() }}';
@@ -370,7 +385,7 @@ function loadPetugas() {
                 $('#petugasTableBody').html('<tr><td colspan="9" class="text-center text-muted py-4">Tidak ada data petugas.</td></tr>');
                 $('#petugasInfo').text(''); $('#petugasPagination').html(''); return;
             }
-            let html = '', avatar = '{{ asset("assets/images/users/avatar-1.jpg") }}';
+            let html = '', avatar = '{{ asset("assets/images/users/petugas/") }}';
             data.forEach(function(p, i) {
                 let statusBadge = p.status === 'aktif' ? 'bg-soft-success text-success' : 'bg-soft-secondary text-secondary';
                 html += `<tr>
@@ -423,7 +438,7 @@ function showPetugas(id) {
     $.get(`${PETUGAS_URL}/${id}`, function(res) {
         if (!res.success) return;
         const d = res.data;
-        let avatar = '{{ asset("assets/images/users/avatar-1.jpg") }}';
+        let avatar = '{{ asset("assets/images/users/petugas/") }}';
         $('#show_petugas_foto').attr('src', d.foto || avatar);
         $('#show_petugas_nama').text(d.nama);
         $('#show_petugas_nip').text(d.nip || '-');
@@ -445,7 +460,7 @@ function editPetugas(id) {
     $.get(`${PETUGAS_URL}/${id}`, function(res) {
         if (!res.success) return;
         const d = res.data;
-        let avatar = '{{ asset("assets/images/users/avatar-1.jpg") }}';
+        let avatar = '{{ asset("assets/images/users/petugas/") }}';
         $('#edit_petugas_id').val(id);
         $('#edit_petugas_nip').val(d.nip || '');
         $('#edit_petugas_nama').val(d.nama);

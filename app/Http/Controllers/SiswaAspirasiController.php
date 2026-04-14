@@ -3,118 +3,141 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\InputAspirasi;
+use App\Models\Aspirasi;
+use App\Models\HistoryStatus;
+use App\Models\Kategori;
+use App\Models\Ruangan;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class SiswaAspirasiController extends Controller
 {
-    // ─── Helper: ambil data siswa yang login ──────────────────
-    private function getSiswa()
-    {
-        return DB::table('tbl_siswa')
-            ->where('user_id', auth()->id())
-            ->first();
-    }
-
     // ─── DASHBOARD ────────────────────────────────────────────
     public function dashboard()
     {
-        $siswa = $this->getSiswa();
-        $userId = auth()->id();
+        $user   = auth()->user();
+        $siswa  = $user->siswa;
+        $userId = $user->id;
 
-        $totalAspirasi = DB::table('tbl_input_aspirasi')
-            ->where('user_id', $userId)->count();
+        $totalAspirasi = InputAspirasi::where('user_id', $userId)->count();
 
-        $menunggu = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->where('ia.user_id', $userId)
-            ->where('a.status', 'Menunggu')->count();
+        $countByStatus = InputAspirasi::where('user_id', $userId)
+            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'tbl_input_aspirasi.id')
+            ->selectRaw('a.status, COUNT(*) as total')
+            ->groupBy('a.status')
+            ->pluck('total', 'status');
 
-        $proses = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->where('ia.user_id', $userId)
-            ->where('a.status', 'Proses')->count();
+        $menunggu = $countByStatus['Menunggu'] ?? 0;
+        $proses   = $countByStatus['Proses']   ?? 0;
+        $selesai  = $countByStatus['Selesai']  ?? 0;
 
-        $selesai = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->where('ia.user_id', $userId)
-            ->where('a.status', 'Selesai')->count();
-
-        // 5 aspirasi terbaru
-        $terbaru = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->join('tbl_kategori as k', 'k.id', '=', 'ia.id_kategori')
-            ->where('ia.user_id', $userId)
-            ->select('ia.id', 'k.nama_kategori', 'ia.lokasi', 'ia.keterangan', 'a.status', 'ia.created_at')
-            ->orderByDesc('ia.created_at')
+        $terbaru = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi'])
+            ->where('user_id', $userId)
+            ->latest()
             ->limit(5)
             ->get();
 
         return view('dashboard.siswa', compact(
-            'siswa', 'totalAspirasi', 'menunggu', 'proses', 'selesai', 'terbaru'
+            'siswa',
+            'totalAspirasi',
+            'menunggu',
+            'proses',
+            'selesai',
+            'terbaru'
         ));
     }
 
-    // ─── FORM INPUT ASPIRASI ──────────────────────────────────
+    // ─── CREATE ───────────────────────────────────────────────
     public function create()
     {
-        $kategoriList = DB::table('tbl_kategori')->orderBy('nama_kategori')->get();
-        return view('pages.siswa.aspirasi.create', compact('kategoriList'));
+        $userId = auth()->id();
+
+        $jumlahHariIni = InputAspirasi::where('user_id', $userId)
+            ->whereDate('created_at', now()->toDateString())
+            ->count();
+
+        $limit = 3;
+        $sisaLimit = max(0, $limit - $jumlahHariIni);
+
+        $kategoriList = Kategori::orderBy('nama_kategori')->get();
+        $ruanganList  = Ruangan::orderBy('nama_ruangan')->get();
+
+        $siswaSaksiList = \App\Models\User::where('role', 'siswa')
+            ->where('id', '!=', $userId)
+            ->get();
+
+        return view('pages.siswa.aspirasi.create', compact(
+            'kategoriList',
+            'ruanganList',
+            'sisaLimit',
+            'siswaSaksiList'
+        ));
     }
 
-    // ─── STORE ASPIRASI ───────────────────────────────────────
+    // ─── STORE ────────────────────────────────────────────────
     public function store(Request $request)
     {
         $request->validate([
-            'id_kategori' => 'required|exists:tbl_kategori,id',
-            'lokasi'      => 'required|string|max:100',
-            'keterangan'  => 'required|string|max:500',
-            'foto'        => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'id_kategori'   => 'required|exists:tbl_kategori,id',
+            'ruangan_id'    => 'nullable|exists:tbl_ruangan,id',
+            'lokasi_manual' => 'nullable|string|max:150',
+            'keterangan'    => 'required|string|max:500',
+            'foto'          => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
+
+        if (!$request->ruangan_id && !$request->lokasi_manual) {
+            return response()->json([
+                'success' => false,
+                'errors'  => ['lokasi_manual' => ['Pilih ruangan atau isi lokasi manual.']]
+            ], 422);
+        }
 
         $fotoPath = null;
         if ($request->hasFile('foto')) {
-            $fotoPath = $request->file('foto')->store('aspirasi', 'public');
+            $file = $request->file('foto');
+            $namaFile = time() . '_' . $file->getClientOriginalName();
+
+            $file->move(public_path('assets/images/aspirasi'), $namaFile);
+
+            $fotoPath = $namaFile;
         }
 
-        $inputId = DB::table('tbl_input_aspirasi')->insertGetId([
-            'user_id'     => auth()->id(),
-            'id_kategori' => $request->id_kategori,
-            'lokasi'      => $request->lokasi,
-            'keterangan'  => $request->keterangan,
-            'foto'        => $fotoPath,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+        // Simpan ke tbl_input_aspirasi
+        $input = InputAspirasi::create([
+            'user_id'       => auth()->id(),
+            'id_kategori'   => $request->id_kategori,
+            'ruangan_id'    => $request->ruangan_id ?: null,
+            'lokasi_manual' => $request->ruangan_id ? null : $request->lokasi_manual,
+            'keterangan'    => $request->keterangan,
+            'foto'          => $fotoPath,
         ]);
 
-        $aspirasId = DB::table('tbl_aspirasi')->insertGetId([
-            'id_pelaporan' => $inputId,
+        // Simpan ke tbl_aspirasi
+        $aspirasi = Aspirasi::create([
+            'id_pelaporan' => $input->id,
             'status'       => 'Menunggu',
-            'created_at'   => now(),
-            'updated_at'   => now(),
         ]);
 
-        DB::table('tbl_history_status')->insert([
-            'id_aspirasi' => $aspirasId,
-            'status'      => 'Menunggu',
+        // Simpan histori awal
+        HistoryStatus::create([
+            'id_aspirasi' => $aspirasi->id,
+            'status_lama' => null,
+            'status_baru' => 'Menunggu',
             'keterangan'  => 'Aspirasi berhasil dikirim.',
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'diubah_oleh' => auth()->id(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Aspirasi berhasil dikirim!',
-        ]);
+        return response()->json(['success' => true, 'message' => 'Aspirasi berhasil dikirim!']);
     }
 
-    // ─── DAFTAR ASPIRASI (AJAX DataTable) ────────────────────
+    // ─── INDEX ────────────────────────────────────────────────
     public function index()
     {
-        $kategoriList = DB::table('tbl_kategori')->orderBy('nama_kategori')->get();
+        $kategoriList = Kategori::orderBy('nama_kategori')->get();
         return view('pages.siswa.aspirasi.index', compact('kategoriList'));
     }
 
+    // ─── DATA AJAX ────────────────────────────────────────────
     public function data(Request $request)
     {
         $page    = (int) $request->get('page', 1);
@@ -123,39 +146,40 @@ class SiswaAspirasiController extends Controller
         $status  = $request->get('status', '');
         $userId  = auth()->id();
 
-        $query = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->join('tbl_kategori as k', 'k.id', '=', 'ia.id_kategori')
-            ->where('ia.user_id', $userId)
-            ->select(
-                'ia.id', 'a.id as aspirasi_id',
-                'k.nama_kategori', 'ia.lokasi',
-                'ia.keterangan', 'ia.foto',
-                'a.status', 'a.feedback',
-                'ia.created_at'
-            );
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('k.nama_kategori', 'like', "%$search%")
-                  ->orWhere('ia.lokasi', 'like', "%$search%")
-                  ->orWhere('ia.keterangan', 'like', "%$search%");
+        $query = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi'])
+            ->where('user_id', $userId)
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($q2) use ($search) {
+                    $q2->whereHas('kategori', fn($k) => $k->where('nama_kategori', 'like', "%$search%"))
+                        ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
+                        ->orWhere('lokasi_manual', 'like', "%$search%")
+                        ->orWhere('keterangan', 'like', "%$search%");
+                });
+            })
+            ->when($status, function ($q) use ($status) {
+                $q->whereHas('aspirasi', fn($a) => $a->where('status', $status));
             });
-        }
-
-        if ($status) $query->where('a.status', $status);
 
         $total = $query->count();
-        $data  = $query->orderByDesc('ia.created_at')
-                       ->offset(($page - 1) * $perPage)
-                       ->limit($perPage)
-                       ->get();
+        $items = $query->latest()->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
-        $data->transform(function ($item) {
-            $item->foto_url = $item->foto ? asset('storage/' . $item->foto) : null;
-            $item->created_at_fmt = \Carbon\Carbon::parse($item->created_at)
-                ->locale('id')->isoFormat('D MMM Y, HH:mm');
-            return $item;
+        $data = $items->map(function ($item) {
+            $aspirasi = $item->aspirasi;
+            return [
+                'id'             => $item->id,
+                'aspirasi_id'    => $aspirasi?->id,
+                'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+                'lokasi_display' => $item->lokasi_display,
+                'kode_ruangan'   => $item->ruangan?->kode_ruangan,
+                'lantai'         => $item->ruangan?->lantai,
+                'gedung'         => $item->ruangan?->gedung,
+                'keterangan'     => $item->keterangan,
+                'foto_url'       => $item->foto_url,
+                'status'         => $aspirasi?->status ?? '-',
+                'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
+                'feedback_count' => $aspirasi?->feedback()->count() ?? 0,
+                'created_at_fmt' => $item->created_at_format,
+            ];
         });
 
         return response()->json([
@@ -167,69 +191,88 @@ class SiswaAspirasiController extends Controller
         ]);
     }
 
-    // ─── DETAIL ASPIRASI (AJAX) ───────────────────────────────
+    // ─── SHOW AJAX ────────────────────────────────────────────
     public function show($id)
     {
-        $item = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->join('tbl_kategori as k', 'k.id', '=', 'ia.id_kategori')
-            ->where('ia.id', $id)
-            ->where('ia.user_id', auth()->id()) // hanya milik sendiri
-            ->select(
-                'ia.id', 'a.id as aspirasi_id',
-                'k.nama_kategori', 'ia.lokasi',
-                'ia.keterangan', 'ia.foto',
-                'a.status', 'a.feedback',
-                'ia.created_at', 'ia.updated_at'
-            )
+        $item = InputAspirasi::with([
+            'kategori',
+            'ruangan',
+            'aspirasi.feedback.user',
+            'aspirasi.historyStatus',
+            'aspirasi.progres.user',
+        ])->where('id', $id)
+            ->where('user_id', auth()->id())
             ->first();
 
         if (!$item) {
             return response()->json(['message' => 'Data tidak ditemukan.'], 404);
         }
 
-        $item->foto_url = $item->foto ? asset('storage/' . $item->foto) : null;
-        $item->created_at_fmt = \Carbon\Carbon::parse($item->created_at)
-            ->locale('id')->isoFormat('D MMM Y, HH:mm');
+        $aspirasi = $item->aspirasi;
 
-        $item->histori = DB::table('tbl_history_status')
-            ->where('id_aspirasi', $item->aspirasi_id)
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function ($h) {
-                $h->created_at_fmt = \Carbon\Carbon::parse($h->created_at)
-                    ->locale('id')->isoFormat('D MMM Y, HH:mm');
-                return $h;
-            });
+        return response()->json([
+            'id'             => $item->id,
+            'aspirasi_id'    => $aspirasi?->id,
+            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display' => $item->lokasi_display,
+            'kode_ruangan'   => $item->ruangan?->kode_ruangan,
+            'lantai'         => $item->ruangan?->lantai,
+            'gedung'         => $item->ruangan?->gedung,
+            'keterangan'     => $item->keterangan,
+            'foto_url'       => $item->foto_url,
+            'status'         => $aspirasi?->status ?? '-',
+            'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
+            'created_at_fmt' => $item->created_at_format,
 
-        return response()->json($item);
+            // Feedback dari admin/petugas
+            'feedback' => $aspirasi?->feedback->map(fn($f) => [
+                'isi_feedback'    => $f->isi_feedback,
+                'nama_pemberi'    => $f->user?->nama ?? '-',
+                'created_at_fmt'  => $f->created_at_format,
+            ]) ?? [],
+
+            // Histori perubahan status
+            'histori' => $aspirasi?->historyStatus->map(fn($h) => [
+                'status'         => $h->status,
+                'status_badge'   => $h->status_badge,
+                'keterangan'     => $h->keterangan,
+                'created_at_fmt' => $h->created_at_format,
+            ]) ?? [],
+
+            // Progres perbaikan
+            'progres' => $aspirasi?->progres->map(fn($p) => [
+                'keterangan_progres' => $p->keterangan_progres,
+                'nama_petugas'       => $p->user?->nama ?? '-',
+                'created_at_fmt'     => $p->created_at_format,
+            ]) ?? [],
+        ]);
     }
 
     // ─── HISTORY ─────────────────────────────────────────────
     public function history()
     {
-        $userId = auth()->id();
-
-        $histori = DB::table('tbl_history_status as hs')
-            ->join('tbl_aspirasi as a', 'a.id', '=', 'hs.id_aspirasi')
-            ->join('tbl_input_aspirasi as ia', 'ia.id', '=', 'a.id_pelaporan')
-            ->join('tbl_kategori as k', 'k.id', '=', 'ia.id_kategori')
-            ->where('ia.user_id', $userId)
-            ->select(
-                'hs.id', 'hs.status', 'hs.keterangan',
-                'hs.created_at', 'ia.id as input_id',
-                'k.nama_kategori', 'ia.lokasi'
-            )
-            ->orderByDesc('hs.created_at')
+        $histori = HistoryStatus::with(['aspirasi.inputAspirasi.kategori', 'aspirasi.inputAspirasi.ruangan'])
+            ->whereHas('aspirasi.inputAspirasi', fn($q) => $q->where('user_id', auth()->id()))
+            ->latest()
             ->paginate(15);
 
-        // Format tanggal
-        $histori->getCollection()->transform(function ($h) {
-            $h->created_at_fmt = \Carbon\Carbon::parse($h->created_at)
-                ->locale('id')->isoFormat('D MMM Y, HH:mm');
-            return $h;
-        });
-
         return view('pages.siswa.aspirasi.history', compact('histori'));
+    }
+
+    // ─── GET DETAIL RUANGAN (AJAX autofill) ───────────────────
+    public function getRuangan($id)
+    {
+        $ruangan = Ruangan::find($id);
+        if (!$ruangan) {
+            return response()->json(['message' => 'Tidak ditemukan.'], 404);
+        }
+        return response()->json([
+            'id'           => $ruangan->id,
+            'nama_ruangan' => $ruangan->nama_ruangan,
+            'kode_ruangan' => $ruangan->kode_ruangan,
+            'lantai'       => $ruangan->lantai,
+            'gedung'       => $ruangan->gedung,
+            'kondisi'      => $ruangan->kondisi,
+        ]);
     }
 }

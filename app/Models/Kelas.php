@@ -9,11 +9,8 @@ class Kelas extends Model
     protected $table = 'tbl_kelas';
 
     protected $fillable = [
-        'nama_kelas',
-        'tingkat',
-        'jurusan_id',
-        'ruangan_id',
-        'tahun_ajaran',
+        'nama_kelas', 'tingkat', 'jurusan_id',
+        'ruangan_id', 'tahun_ajaran', 'wali_kelas_id',
     ];
 
     public function jurusan()
@@ -29,5 +26,11 @@ class Kelas extends Model
     public function siswa()
     {
         return $this->hasMany(Siswa::class, 'kelas_id');
+    }
+
+    // Wali kelas → relasi ke tbl_guru
+    public function waliKelas()
+    {
+        return $this->belongsTo(Guru::class, 'wali_kelas_id');
     }
 }

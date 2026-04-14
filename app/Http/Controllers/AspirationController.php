@@ -2,141 +2,131 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InputAspirasi;
+use App\Models\Aspirasi;
+use App\Models\Feedback;
+use App\Models\HistoryStatus;
+use App\Models\Kategori;
+use App\Models\Ruangan;
+use App\Models\Siswa;
+use App\Models\Guru;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AspirationController extends Controller
 {
-    // ─── INDEX — Halaman Utama ─────────────────────────────────
+    // ─── INDEX ────────────────────────────────────────────────
     public function index()
     {
-        $kategoriList = DB::table('tbl_kategori')->orderBy('nama_kategori')->get();
-        $siswaList    = DB::table('tbl_siswa')->orderBy('nama')->get(['user_id', 'nama', 'nis']);
-        $guruList     = DB::table('tbl_guru')->orderBy('nama')->get(['user_id', 'nama', 'nip']);
-        return view('pages.input_aspirasi.index', compact('kategoriList', 'siswaList', 'guruList'));
+        $kategoriList = Kategori::orderBy('nama_kategori')->get();
+        $siswaList    = Siswa::orderBy('nama')->get(['user_id', 'nama', 'nis']);
+        $guruList     = Guru::orderBy('nama')->get(['user_id', 'nama', 'nip']);
+        $ruanganList  = Ruangan::orderBy('nama_ruangan')->get();
+        return view('pages.input_aspirasi.index', compact('kategoriList', 'siswaList', 'guruList', 'ruanganList'));
     }
 
-    // ─── STORE — Simpan aspirasi baru ────────────────────────
+    // ─── STORE ────────────────────────────────────────────────
     public function store(Request $request)
     {
         $request->validate([
-            'user_id'     => 'required|exists:tbl_users,id',
-            'id_kategori' => 'required|exists:tbl_kategori,id',
-            'lokasi'      => 'required|string|max:100',
-            'keterangan'  => 'required|string|max:500',
-            'status'      => 'required|in:Menunggu,Proses,Selesai',
-            'foto'        => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'user_id'       => 'required|exists:tbl_users,id',
+            'id_kategori'   => 'required|exists:tbl_kategori,id',
+            'ruangan_id'    => 'nullable|exists:tbl_ruangan,id',
+            'lokasi_manual' => 'nullable|string|max:150',
+            'keterangan'    => 'required|string|max:500',
+            'status'        => 'required|in:Menunggu,Proses,Selesai',
+            'foto'          => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        // Upload foto jika ada
+        if (!$request->ruangan_id && !$request->lokasi_manual) {
+            return response()->json([
+                'success' => false,
+                'errors'  => ['lokasi_manual' => ['Pilih ruangan atau isi lokasi manual.']]
+            ], 422);
+        }
+
         $fotoPath = null;
         if ($request->hasFile('foto')) {
             $fotoPath = $request->file('foto')->store('aspirasi', 'public');
         }
 
-        // Simpan ke tbl_input_aspirasi
-        $inputId = DB::table('tbl_input_aspirasi')->insertGetId([
-            'user_id'     => $request->user_id,
-            'id_kategori' => $request->id_kategori,
-            'lokasi'      => $request->lokasi,
-            'keterangan'  => $request->keterangan,
-            'foto'        => $fotoPath,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+        $input = InputAspirasi::create([
+            'user_id'       => $request->user_id,
+            'id_kategori'   => $request->id_kategori,
+            'ruangan_id'    => $request->ruangan_id ?: null,
+            'lokasi_manual' => $request->ruangan_id ? null : $request->lokasi_manual,
+            'keterangan'    => $request->keterangan,
+            'foto'          => $fotoPath,
         ]);
 
-        // Simpan ke tbl_aspirasi
-        $aspirasId = DB::table('tbl_aspirasi')->insertGetId([
-            'id_pelaporan' => $inputId,
+        $aspirasi = Aspirasi::create([
+            'id_pelaporan' => $input->id,
             'status'       => $request->status,
-            'created_at'   => now(),
-            'updated_at'   => now(),
         ]);
 
-        // Simpan histori awal
-        DB::table('tbl_history_status')->insert([
-            'id_aspirasi' => $aspirasId,
+        HistoryStatus::create([
+            'id_aspirasi' => $aspirasi->id,
+            'status_lama' => null,
+            'status_baru' => $request->status,
             'status'      => $request->status,
-            'keterangan'  => 'Aspirasi dibuat oleh admin.',
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'keterangan'  => 'Aspirasi berhasil dikirim.',
+            'diubah_oleh' => auth()->id(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Aspirasi berhasil ditambahkan.',
-        ]);
+        return response()->json(['success' => true, 'message' => 'Aspirasi berhasil ditambahkan.']);
     }
 
-    // ─── DATA — AJAX untuk tabel ──────────────────────────────
+    // ─── DATA AJAX ────────────────────────────────────────────
     public function data(Request $request)
     {
-        $page      = (int) $request->get('page', 1);
-        $perPage   = (int) $request->get('per_page', 10);
-        $search    = $request->get('search', '');
-        $kategori  = $request->get('kategori', '');
-        $status    = $request->get('status', '');
-        $role      = $request->get('role', '');
-        $dateFrom  = $request->get('date_from', '');
-        $dateTo    = $request->get('date_to', '');
+        $page     = (int) $request->get('page', 1);
+        $perPage  = (int) $request->get('per_page', 10);
+        $search   = $request->get('search', '');
+        $kategori = $request->get('kategori', '');
+        $status   = $request->get('status', '');
+        $role     = $request->get('role', '');
+        $dateFrom = $request->get('date_from', '');
+        $dateTo   = $request->get('date_to', '');
 
-        $query = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->join('tbl_users as u', 'u.id', '=', 'ia.user_id')
-            ->join('tbl_kategori as k', 'k.id', '=', 'ia.id_kategori')
-            ->leftJoin('tbl_siswa as s', function ($join) {
-                $join->on('s.user_id', '=', 'u.id')->where('u.role', '=', 'siswa');
-            })
-            ->leftJoin('tbl_guru as g', function ($join) {
-                $join->on('g.user_id', '=', 'u.id')->where('u.role', '=', 'guru');
-            })
-            ->select(
-                'ia.id',
-                'a.id as aspirasi_id',
-                DB::raw("COALESCE(s.nama, g.nama, u.email) as nama_pelapor"),
-                DB::raw("COALESCE(s.nis, g.nip, '-') as identitas"),
-                'u.role',
-                'k.nama_kategori',
-                'ia.lokasi',
-                'ia.keterangan',
-                'ia.foto',
-                'a.status',
-                'ia.created_at'
-            );
+        $query = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi', 'user.siswa', 'user.guru'])
+            ->when($search, fn($q) => $q->where(function ($q2) use ($search) {
+                $q2->whereHas('user.siswa', fn($s) => $s->where('nama', 'like', "%$search%"))
+                    ->orWhereHas('user.guru', fn($g) => $g->where('nama', 'like', "%$search%"))
+                    ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
+                    ->orWhere('lokasi_manual', 'like', "%$search%")
+                    ->orWhere('keterangan', 'like', "%$search%")
+                    ->orWhereHas('kategori', fn($k) => $k->where('nama_kategori', 'like', "%$search%"));
+            }))
+            ->when($kategori, fn($q) => $q->where('id_kategori', $kategori))
+            ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)))
+            ->when($role, fn($q) => $q->whereHas('user', fn($u) => $u->where('role', $role)))
+            ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+            ->when($dateTo, fn($q) => $q->whereDate('created_at', '<=', $dateTo));
 
-        // ─── Filter pencarian ──────────────────────────────────
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('s.nama', 'like', "%$search%")
-                  ->orWhere('g.nama', 'like', "%$search%")
-                  ->orWhere('u.email', 'like', "%$search%")
-                  ->orWhere('ia.lokasi', 'like', "%$search%")
-                  ->orWhere('ia.keterangan', 'like', "%$search%")
-                  ->orWhere('k.nama_kategori', 'like', "%$search%");
-            });
-        }
+        $total = $query->count();
+        $items = $query->latest()->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
-        if ($kategori)  $query->where('ia.id_kategori', $kategori);
-        if ($status)    $query->where('a.status', $status);
-        if ($role)      $query->where('u.role', $role);
-        if ($dateFrom)  $query->whereDate('ia.created_at', '>=', $dateFrom);
-        if ($dateTo)    $query->whereDate('ia.created_at', '<=', $dateTo);
+        $data = $items->map(function ($item) {
+            $aspirasi     = $item->aspirasi;
+            $user         = $item->user;
+            $profil       = $user->role === 'siswa' ? $user->siswa : $user->guru;
+            $namaPerlapor = $profil?->nama ?? $user->email;
+            $identitas    = ($user->role === 'siswa' ? $profil?->nis : $profil?->nip) ?? '-';
 
-        $total   = $query->count();
-        $data    = $query->orderByDesc('ia.created_at')
-                         ->offset(($page - 1) * $perPage)
-                         ->limit($perPage)
-                         ->get();
-
-        // Format foto URL
-        $data->transform(function ($item) {
-            $item->foto_url = $item->foto
-                ? asset('storage/' . $item->foto)
-                : null;
-            $item->created_at_fmt = \Carbon\Carbon::parse($item->created_at)
-                ->locale('id')
-                ->isoFormat('D MMM Y, HH:mm');
-            return $item;
+            return [
+                'id'             => $item->id,
+                'aspirasi_id'    => $aspirasi?->id,
+                'nama_pelapor'   => $namaPerlapor,
+                'identitas'      => $identitas,
+                'role'           => $user->role,
+                'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+                'lokasi_display' => $item->lokasi_display,
+                'keterangan'     => $item->keterangan,
+                'foto_url'       => $item->foto_url,
+                'status'         => $aspirasi?->status ?? '-',
+                'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
+                'created_at_fmt' => $item->created_at_format,
+            ];
         });
 
         return response()->json([
@@ -148,124 +138,126 @@ class AspirationController extends Controller
         ]);
     }
 
-    // ─── SHOW — Detail aspirasi (AJAX) ────────────────────────
+    // ─── SHOW AJAX ────────────────────────────────────────────
     public function show($id)
     {
-        $item = DB::table('tbl_input_aspirasi as ia')
-            ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'ia.id')
-            ->join('tbl_users as u', 'u.id', '=', 'ia.user_id')
-            ->join('tbl_kategori as k', 'k.id', '=', 'ia.id_kategori')
-            ->leftJoin('tbl_siswa as s', function ($join) {
-                $join->on('s.user_id', '=', 'u.id')->where('u.role', '=', 'siswa');
-            })
-            ->leftJoin('tbl_guru as g', function ($join) {
-                $join->on('g.user_id', '=', 'u.id')->where('u.role', '=', 'guru');
-            })
-            ->select(
-                'ia.id',
-                'a.id as aspirasi_id',
-                DB::raw("COALESCE(s.nama, g.nama, u.email) as nama_pelapor"),
-                DB::raw("COALESCE(s.nis, g.nip, '-') as identitas"),
-                'u.role',
-                'u.email',
-                'k.nama_kategori',
-                'k.deskripsi as kategori_deskripsi',
-                'ia.lokasi',
-                'ia.keterangan',
-                'ia.foto',
-                'a.status',
-                'a.feedback',
-                'ia.created_at',
-                'ia.updated_at'
-            )
-            ->where('ia.id', $id)
-            ->first();
+        $item = InputAspirasi::with([
+            'kategori',
+            'ruangan',
+            'user.siswa',
+            'user.guru',
+            'aspirasi.feedback.user',
+            'aspirasi.historyStatus',
+            'aspirasi.progres.user',
+        ])->find($id);
 
         if (!$item) {
             return response()->json(['message' => 'Data tidak ditemukan.'], 404);
         }
 
-        $item->foto_url = $item->foto
-            ? asset('storage/' . $item->foto)
-            : null;
-        $item->created_at_fmt = \Carbon\Carbon::parse($item->created_at)
-            ->locale('id')->isoFormat('D MMM Y, HH:mm');
-        $item->updated_at_fmt = \Carbon\Carbon::parse($item->updated_at)
-            ->locale('id')->isoFormat('D MMM Y, HH:mm');
+        $aspirasi  = $item->aspirasi;
+        $user      = $item->user;
+        $profil    = $user->role === 'siswa' ? $user->siswa : $user->guru;
 
-        // Histori status
-        $item->histori = DB::table('tbl_history_status')
-            ->where('id_aspirasi', $item->aspirasi_id)
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function ($h) {
-                $h->created_at_fmt = \Carbon\Carbon::parse($h->created_at)
-                    ->locale('id')->isoFormat('D MMM Y, HH:mm');
-                return $h;
-            });
+        return response()->json([
+            'id'              => $item->id,
+            'aspirasi_id'     => $aspirasi?->id,
+            'nama_pelapor'    => $profil?->nama ?? $user->email,
+            'identitas'       => ($user->role === 'siswa' ? $profil?->nis : $profil?->nip) ?? '-',
+            'role'            => $user->role,
+            'email'           => $user->email,
+            'nama_kategori'   => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display'  => $item->lokasi_display,
+            'kode_ruangan'    => $item->ruangan?->kode_ruangan,
+            'lantai'          => $item->ruangan?->lantai,
+            'gedung'          => $item->ruangan?->gedung,
+            'keterangan'      => $item->keterangan,
+            'foto_url'        => $item->foto_url,
+            'status'          => $aspirasi?->status ?? '-',
+            'status_badge'    => $aspirasi?->status_badge ?? 'bg-secondary',
+            'created_at_fmt'  => $item->created_at_format,
 
-        return response()->json($item);
+            'feedback' => $aspirasi?->feedback->map(fn($f) => [
+                'isi_feedback'   => $f->isi_feedback,
+                'nama_pemberi'   => $f->user?->nama ?? '-',
+                'created_at_fmt' => $f->created_at_format,
+            ]) ?? [],
+
+            'histori' => $aspirasi?->historyStatus->map(fn($h) => [
+                'status'         => $h->status,
+                'status_badge'   => $h->status_badge,
+                'keterangan'     => $h->keterangan,
+                'created_at_fmt' => $h->created_at_format,
+            ]) ?? [],
+
+            'progres' => $aspirasi?->progres->map(fn($p) => [
+                'keterangan_progres' => $p->keterangan_progres,
+                'nama_petugas'       => $p->user?->nama ?? '-',
+                'created_at_fmt'     => $p->created_at_format,
+            ]) ?? [],
+        ]);
     }
 
-    // ─── UPDATE STATUS — AJAX ─────────────────────────────────
+    // ─── UPDATE STATUS ────────────────────────────────────────
     public function updateStatus(Request $request, $aspirasi_id)
     {
         $request->validate([
-            'status'   => 'required|in:Menunggu,Proses,Selesai',
-            'feedback' => 'nullable|string|max:500',
+            'status'       => 'required|in:Menunggu,Proses,Selesai',
+            'isi_feedback' => 'nullable|string|max:500',
         ]);
 
-        $exists = DB::table('tbl_aspirasi')->where('id', $aspirasi_id)->first();
-        if (!$exists) {
+        $aspirasi = Aspirasi::find($aspirasi_id);
+        if (!$aspirasi) {
             return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
         }
 
-        DB::table('tbl_aspirasi')->where('id', $aspirasi_id)->update([
-            'status'     => $request->status,
-            'feedback'   => $request->feedback,
-            'updated_at' => now(),
-        ]);
+        $statusLama = $aspirasi->status;
 
-        // Simpan ke histori
-        DB::table('tbl_history_status')->insert([
-            'id_aspirasi' => $aspirasi_id,
+        $aspirasi->update(['status' => $request->status]);
+
+        HistoryStatus::create([
+            'id_aspirasi' => $aspirasi->id,
+            'status_lama' => $statusLama,
+            'status_baru' => $request->status,
             'status'      => $request->status,
-            'keterangan'  => $request->feedback,
-            'created_at'  => now(),
-            'updated_at'  => now(),
+            'keterangan'  => $request->isi_feedback ?? 'Status diperbarui.',
+            'diubah_oleh' => auth()->id(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Status aspirasi berhasil diperbarui.',
-        ]);
+        // Simpan feedback jika diisi
+        if ($request->isi_feedback) {
+            Feedback::create([
+                'id_aspirasi'  => $aspirasi->id,
+                'user_id'      => auth()->id(),
+                'isi_feedback' => $request->isi_feedback,
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Status berhasil diperbarui.']);
     }
 
-    // ─── DESTROY — Hapus aspirasi ─────────────────────────────
+    // ─── DESTROY ──────────────────────────────────────────────
     public function destroy($id)
     {
-        $item = DB::table('tbl_input_aspirasi')->where('id', $id)->first();
+        $item = InputAspirasi::find($id);
         if (!$item) {
             return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
         }
 
-        // Hapus foto dari storage jika ada
-        if ($item->foto && \Storage::disk('public')->exists($item->foto)) {
-            \Storage::disk('public')->delete($item->foto);
+        if ($item->foto && Storage::disk('public')->exists($item->foto)) {
+            Storage::disk('public')->delete($item->foto);
         }
 
-        // Cari aspirasi terkait
-        $aspirasi = DB::table('tbl_aspirasi')->where('id_pelaporan', $id)->first();
+        $aspirasi = $item->aspirasi;
         if ($aspirasi) {
-            DB::table('tbl_history_status')->where('id_aspirasi', $aspirasi->id)->delete();
-            DB::table('tbl_aspirasi')->where('id', $aspirasi->id)->delete();
+            $aspirasi->feedback()->delete();
+            $aspirasi->historyStatus()->delete();
+            $aspirasi->progres()->delete();
+            $aspirasi->delete();
         }
 
-        DB::table('tbl_input_aspirasi')->where('id', $id)->delete();
+        $item->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Aspirasi berhasil dihapus.',
-        ]);
+        return response()->json(['success' => true, 'message' => 'Aspirasi berhasil dihapus.']);
     }
 }

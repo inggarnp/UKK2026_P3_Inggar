@@ -5,12 +5,40 @@ use App\Models\Guru;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class GuruController extends Controller
 {
+    private function fotoDir(): string
+    {
+        return public_path('assets/images/users/guru');
+    }
+
+    private function fotoUrl(?string $filename): string
+    {
+        return $filename
+            ? asset('assets/images/users/guru/' . $filename)
+            : asset('assets/images/users/avatar-1.jpg');
+    }
+
+    private function simpanFoto($file): string
+    {
+        $dir = $this->fotoDir();
+        if (!file_exists($dir)) mkdir($dir, 0755, true);
+        $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $file->move($dir, $filename);
+        return $filename;
+    }
+
+    private function hapusFoto(?string $filename): void
+    {
+        if ($filename) {
+            $path = $this->fotoDir() . '/' . $filename;
+            if (file_exists($path)) unlink($path);
+        }
+    }
+
     public function index()
     {
         return view('pages.guru.index');
@@ -22,9 +50,9 @@ class GuruController extends Controller
 
         if ($request->search) {
             $query->where(function ($q) use ($request) {
-                $q->where('nama', 'like', "%{$request->search}%")
-                  ->orWhere('nip', 'like', "%{$request->search}%")
-                  ->orWhere('jabatan', 'like', "%{$request->search}%");
+                $q->where('nama',    'like', "%{$request->search}%")
+                  ->orWhere('nip',   'like', "%{$request->search}%")
+                  ->orWhere('jabatan','like', "%{$request->search}%");
             });
         }
 
@@ -41,8 +69,8 @@ class GuruController extends Controller
                 'jabatan_label'  => $g->jabatan_label,
                 'mata_pelajaran' => $g->mata_pelajaran,
                 'jenis_kelamin'  => $g->jenis_kelamin,
-                'email'          => $g->user->email ?? '-',
-                'foto'           => $g->foto_url,
+                'email'          => $g->user?->email ?? '-',
+                'foto'           => $this->fotoUrl($g->foto),
             ]),
             'meta' => [
                 'total'        => $result->total(),
@@ -57,26 +85,24 @@ class GuruController extends Controller
     public function show($id)
     {
         $g = Guru::with('user')->findOrFail($id);
-
         return response()->json([
             'success' => true,
             'data' => [
-                'id'             => $g->id,
-                'nip'            => $g->nip,
-                'nama'           => $g->nama,
-                'jabatan'        => $g->jabatan,
-                'jabatan_label'  => $g->jabatan_label,
-                'mata_pelajaran' => $g->mata_pelajaran ?? '',
-                'jenis_kelamin'  => $g->jenis_kelamin,
-                'tanggal_lahir'  => $g->tanggal_lahir
-                    ? $g->tanggal_lahir->format('Y-m-d') : '',
+                'id'                   => $g->id,
+                'nip'                  => $g->nip,
+                'nama'                 => $g->nama,
+                'jabatan'              => $g->jabatan,
+                'jabatan_label'        => $g->jabatan_label,
+                'mata_pelajaran'       => $g->mata_pelajaran ?? '',
+                'jenis_kelamin'        => $g->jenis_kelamin,
+                'tanggal_lahir'        => $g->tanggal_lahir?->format('Y-m-d'),
                 'tanggal_lahir_format' => $g->tanggal_lahir_format,
-                'alamat'         => $g->alamat ?? '',
-                'no_hp'          => $g->no_hp ?? '',
-                'email'          => $g->user->email ?? '-',
-                'foto'           => $g->foto_url,
-                'created_at'     => $g->created_at->format('d M Y, H:i'),
-                'updated_at'     => $g->updated_at->format('d M Y, H:i'),
+                'alamat'               => $g->alamat ?? '',
+                'no_hp'                => $g->no_hp ?? '',
+                'email'                => $g->user?->email ?? '-',
+                'foto'                 => $this->fotoUrl($g->foto),
+                'created_at'           => $g->created_at->format('d M Y, H:i'),
+                'updated_at'           => $g->updated_at->format('d M Y, H:i'),
             ]
         ]);
     }
@@ -99,16 +125,16 @@ class GuruController extends Controller
 
         DB::beginTransaction();
         try {
+            $fotoFilename = null;
+            if ($request->hasFile('foto')) {
+                $fotoFilename = $this->simpanFoto($request->file('foto'));
+            }
+
             $user = User::create([
                 'email'    => $request->email,
                 'password' => Hash::make($request->password),
                 'role'     => 'guru',
             ]);
-
-            $fotoPath = null;
-            if ($request->hasFile('foto')) {
-                $fotoPath = $request->file('foto')->store('foto/guru', 'public');
-            }
 
             Guru::create([
                 'user_id'        => $user->id,
@@ -120,13 +146,14 @@ class GuruController extends Controller
                 'tanggal_lahir'  => $request->tanggal_lahir,
                 'alamat'         => $request->alamat,
                 'no_hp'          => $request->no_hp,
-                'foto'           => $fotoPath,
+                'foto'           => $fotoFilename,
             ]);
 
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Data guru berhasil ditambahkan!']);
         } catch (\Exception $e) {
             DB::rollBack();
+            if (isset($fotoFilename)) $this->hapusFoto($fotoFilename);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -151,17 +178,17 @@ class GuruController extends Controller
 
         DB::beginTransaction();
         try {
+            $fotoFilename = $guru->foto;
+            if ($request->hasFile('foto')) {
+                $this->hapusFoto($guru->foto);
+                $fotoFilename = $this->simpanFoto($request->file('foto'));
+            }
+
             $userData = ['email' => $request->email];
             if ($request->filled('password')) {
                 $userData['password'] = Hash::make($request->password);
             }
             User::where('id', $guru->user_id)->update($userData);
-
-            $fotoPath = $guru->foto;
-            if ($request->hasFile('foto')) {
-                if ($guru->foto) Storage::disk('public')->delete($guru->foto);
-                $fotoPath = $request->file('foto')->store('foto/guru', 'public');
-            }
 
             $guru->update([
                 'nip'            => $request->nip,
@@ -172,7 +199,7 @@ class GuruController extends Controller
                 'tanggal_lahir'  => $request->tanggal_lahir,
                 'alamat'         => $request->alamat,
                 'no_hp'          => $request->no_hp,
-                'foto'           => $fotoPath,
+                'foto'           => $fotoFilename,
             ]);
 
             DB::commit();
@@ -188,8 +215,9 @@ class GuruController extends Controller
         $guru = Guru::findOrFail($id);
         DB::beginTransaction();
         try {
-            if ($guru->foto) Storage::disk('public')->delete($guru->foto);
+            $this->hapusFoto($guru->foto);
             User::where('id', $guru->user_id)->delete();
+            $guru->delete();
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Data guru berhasil dihapus!']);
         } catch (\Exception $e) {

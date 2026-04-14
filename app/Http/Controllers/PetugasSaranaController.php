@@ -5,12 +5,40 @@ use App\Models\PetugasSarana;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PetugasSaranaController extends Controller
 {
+    private function fotoDir(): string
+    {
+        return public_path('assets/images/users/petugas');
+    }
+
+    private function fotoUrl(?string $filename): string
+    {
+        return $filename
+            ? asset('assets/images/users/petugas/' . $filename)
+            : asset('assets/images/users/avatar-1.jpg');
+    }
+
+    private function simpanFoto($file): string
+    {
+        $dir = $this->fotoDir();
+        if (!file_exists($dir)) mkdir($dir, 0755, true);
+        $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $file->move($dir, $filename);
+        return $filename;
+    }
+
+    private function hapusFoto(?string $filename): void
+    {
+        if ($filename) {
+            $path = $this->fotoDir() . '/' . $filename;
+            if (file_exists($path)) unlink($path);
+        }
+    }
+
     public function index()
     {
         return view('pages.petugas.index');
@@ -22,9 +50,8 @@ class PetugasSaranaController extends Controller
 
         if ($request->search) {
             $query->where(function ($q) use ($request) {
-                $q->where('nama',   'like', "%{$request->search}%")
-                  ->orWhere('nip',  'like', "%{$request->search}%")
-                  ->orWhere('status','like', "%{$request->search}%");
+                $q->where('nama',  'like', "%{$request->search}%")
+                  ->orWhere('nip', 'like', "%{$request->search}%");
             });
         }
 
@@ -46,7 +73,7 @@ class PetugasSaranaController extends Controller
                 'status'        => $p->status,
                 'status_label'  => $p->status_label,
                 'email'         => $p->user?->email ?? '-',
-                'foto'          => $p->foto_url,
+                'foto'          => $this->fotoUrl($p->foto),
             ]),
             'meta' => [
                 'total'        => $result->total(),
@@ -74,7 +101,7 @@ class PetugasSaranaController extends Controller
                 'no_hp'                => $p->no_hp,
                 'status'               => $p->status,
                 'status_label'         => $p->status_label,
-                'foto'                 => $p->foto_url,
+                'foto'                 => $this->fotoUrl($p->foto),
                 'email'                => $p->user?->email,
                 'created_at'           => $p->created_at->format('d M Y, H:i'),
                 'updated_at'           => $p->updated_at->format('d M Y, H:i'),
@@ -99,16 +126,16 @@ class PetugasSaranaController extends Controller
 
         DB::beginTransaction();
         try {
+            $fotoFilename = null;
+            if ($request->hasFile('foto')) {
+                $fotoFilename = $this->simpanFoto($request->file('foto'));
+            }
+
             $user = User::create([
                 'email'    => $request->email,
                 'password' => Hash::make($request->password),
                 'role'     => 'petugas_sarana',
             ]);
-
-            $fotoPath = null;
-            if ($request->hasFile('foto')) {
-                $fotoPath = $request->file('foto')->store('foto/petugas', 'public');
-            }
 
             PetugasSarana::create([
                 'user_id'       => $user->id,
@@ -118,7 +145,7 @@ class PetugasSaranaController extends Controller
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'alamat'        => $request->alamat,
                 'no_hp'         => $request->no_hp,
-                'foto'          => $fotoPath,
+                'foto'          => $fotoFilename,
                 'status'        => $request->status,
             ]);
 
@@ -126,6 +153,7 @@ class PetugasSaranaController extends Controller
             return response()->json(['success' => true, 'message' => 'Petugas sarana berhasil ditambahkan!']);
         } catch (\Exception $e) {
             DB::rollBack();
+            if (isset($fotoFilename)) $this->hapusFoto($fotoFilename);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -149,17 +177,17 @@ class PetugasSaranaController extends Controller
 
         DB::beginTransaction();
         try {
+            $fotoFilename = $petugas->foto;
+            if ($request->hasFile('foto')) {
+                $this->hapusFoto($petugas->foto);
+                $fotoFilename = $this->simpanFoto($request->file('foto'));
+            }
+
             $userData = ['email' => $request->email];
             if ($request->filled('password')) {
                 $userData['password'] = Hash::make($request->password);
             }
             User::where('id', $petugas->user_id)->update($userData);
-
-            $fotoPath = $petugas->foto;
-            if ($request->hasFile('foto')) {
-                if ($petugas->foto) Storage::disk('public')->delete($petugas->foto);
-                $fotoPath = $request->file('foto')->store('foto/petugas', 'public');
-            }
 
             $petugas->update([
                 'nip'           => $request->nip,
@@ -168,7 +196,7 @@ class PetugasSaranaController extends Controller
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'alamat'        => $request->alamat,
                 'no_hp'         => $request->no_hp,
-                'foto'          => $fotoPath,
+                'foto'          => $fotoFilename,
                 'status'        => $request->status,
             ]);
 
@@ -185,7 +213,7 @@ class PetugasSaranaController extends Controller
         $petugas = PetugasSarana::with('user')->findOrFail($id);
         DB::beginTransaction();
         try {
-            if ($petugas->foto) Storage::disk('public')->delete($petugas->foto);
+            $this->hapusFoto($petugas->foto);
             $userId = $petugas->user_id;
             $petugas->delete();
             User::destroy($userId);

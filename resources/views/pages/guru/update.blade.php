@@ -50,12 +50,12 @@
                                 <div class="d-flex gap-3">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio"
-                                            name="jenis_kelamin_edit" value="L" required>
+                                            name="jenis_kelamin" value="L" required>
                                         <label class="form-check-label">Laki-laki</label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio"
-                                            name="jenis_kelamin_edit" value="P">
+                                            name="jenis_kelamin" value="P">
                                         <label class="form-check-label">Perempuan</label>
                                     </div>
                                 </div>

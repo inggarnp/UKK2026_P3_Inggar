@@ -9,12 +9,41 @@ use App\Models\Jurusan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class SiswaController extends Controller
 {
+    // ─── Path helper ──────────────────────────────────────
+    private function fotoDir(): string
+    {
+        return public_path('assets/images/users/siswa');
+    }
+
+    private function fotoUrl(?string $filename): ?string
+    {
+        return $filename ? asset('assets/images/users/siswa/' . $filename) : null;
+    }
+
+    private function simpanFoto($file): string
+    {
+        $dir = $this->fotoDir();
+        if (!file_exists($dir)) mkdir($dir, 0755, true);
+
+        $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $file->move($dir, $filename);
+        return $filename;
+    }
+
+    private function hapusFoto(?string $filename): void
+    {
+        if ($filename) {
+            $path = $this->fotoDir() . '/' . $filename;
+            if (file_exists($path)) unlink($path);
+        }
+    }
+
+    // ─── INDEX ────────────────────────────────────────────
     public function index()
     {
         $kelasList   = Kelas::with('jurusan')->orderBy('nama_kelas')->get();
@@ -22,6 +51,7 @@ class SiswaController extends Controller
         return view('pages.siswa.index', compact('kelasList', 'jurusanList'));
     }
 
+    // ─── DATA (AJAX) ──────────────────────────────────────
     public function data(Request $request)
     {
         $query = Siswa::with(['user', 'kelas', 'jurusan'])->select('tbl_siswa.*');
@@ -30,16 +60,16 @@ class SiswaController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('nis',  'like', "%$s%")
-                  ->orWhere('nama','like', "%$s%")
+                  ->orWhere('nama', 'like', "%$s%")
                   ->orWhereHas('kelas',   fn($q2) => $q2->where('nama_kelas',   'like', "%$s%"))
                   ->orWhereHas('jurusan', fn($q2) => $q2->where('nama_jurusan', 'like', "%$s%"));
             });
         }
 
-        $sortColumn = $request->get('sort_column', 'id');
-        $sortDir    = $request->get('sort_dir', 'asc');
-        if (in_array($sortColumn, ['id', 'nis', 'nama', 'jenis_kelamin'])) {
-            $query->orderBy($sortColumn, $sortDir);
+        $sortCol = $request->get('sort_column', 'id');
+        $sortDir = $request->get('sort_dir', 'asc');
+        if (in_array($sortCol, ['id', 'nis', 'nama', 'jenis_kelamin'])) {
+            $query->orderBy($sortCol, $sortDir);
         }
 
         $data = $query->paginate($request->get('per_page', 10));
@@ -53,7 +83,7 @@ class SiswaController extends Controller
                 'jurusan'       => $s->jurusan?->nama_jurusan ?? $s->jurusan ?? '-',
                 'jenis_kelamin' => $s->jenis_kelamin,
                 'email'         => $s->user?->email ?? '-',
-                'foto'          => $s->foto ? asset('storage/' . $s->foto) : null,
+                'foto'          => $this->fotoUrl($s->foto),
             ]),
             'total'        => $data->total(),
             'per_page'     => $data->perPage(),
@@ -62,6 +92,7 @@ class SiswaController extends Controller
         ]);
     }
 
+    // ─── SHOW ─────────────────────────────────────────────
     public function show($id)
     {
         $siswa = Siswa::with(['user', 'kelas', 'jurusan'])->findOrFail($id);
@@ -77,13 +108,14 @@ class SiswaController extends Controller
             'tanggal_lahir' => $siswa->tanggal_lahir,
             'alamat'        => $siswa->alamat,
             'no_hp'         => $siswa->no_hp,
-            'foto'          => $siswa->foto ? asset('storage/' . $siswa->foto) : null,
+            'foto'          => $this->fotoUrl($siswa->foto),
             'email'         => $siswa->user?->email,
             'created_at'    => $siswa->created_at,
             'updated_at'    => $siswa->updated_at,
         ]);
     }
 
+    // ─── STORE ────────────────────────────────────────────
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -99,8 +131,8 @@ class SiswaController extends Controller
             'email'         => 'required|email|unique:tbl_users,email',
             'password'      => 'required|string|min:6',
         ], [
-            'nis.unique'    => 'NIS sudah terdaftar.',
-            'email.unique'  => 'Email sudah digunakan.',
+            'nis.unique'          => 'NIS sudah terdaftar.',
+            'email.unique'        => 'Email sudah digunakan.',
             'kelas_id.required'   => 'Kelas wajib dipilih.',
             'jurusan_id.required' => 'Jurusan wajib dipilih.',
         ]);
@@ -111,10 +143,9 @@ class SiswaController extends Controller
 
         DB::beginTransaction();
         try {
-            // Upload foto
-            $fotoPath = null;
+            $fotoFilename = null;
             if ($request->hasFile('foto')) {
-                $fotoPath = $request->file('foto')->store('foto/siswa', 'public');
+                $fotoFilename = $this->simpanFoto($request->file('foto'));
             }
 
             $user = User::create([
@@ -135,17 +166,19 @@ class SiswaController extends Controller
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'alamat'        => $request->alamat,
                 'no_hp'         => $request->no_hp,
-                'foto'          => $fotoPath,
+                'foto'          => $fotoFilename,
             ]);
 
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Siswa berhasil ditambahkan.']);
         } catch (\Exception $e) {
             DB::rollBack();
+            if (isset($fotoFilename)) $this->hapusFoto($fotoFilename);
             return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()], 500);
         }
     }
 
+    // ─── UPDATE ───────────────────────────────────────────
     public function update(Request $request, $id)
     {
         $siswa = Siswa::with('user')->findOrFail($id);
@@ -170,11 +203,10 @@ class SiswaController extends Controller
 
         DB::beginTransaction();
         try {
-            // Upload foto baru jika ada
-            $fotoPath = $siswa->foto;
+            $fotoFilename = $siswa->foto;
             if ($request->hasFile('foto')) {
-                if ($siswa->foto) Storage::disk('public')->delete($siswa->foto);
-                $fotoPath = $request->file('foto')->store('foto/siswa', 'public');
+                $this->hapusFoto($siswa->foto);
+                $fotoFilename = $this->simpanFoto($request->file('foto'));
             }
 
             $userUpdate = ['email' => $request->email];
@@ -194,7 +226,7 @@ class SiswaController extends Controller
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'alamat'        => $request->alamat,
                 'no_hp'         => $request->no_hp,
-                'foto'          => $fotoPath,
+                'foto'          => $fotoFilename,
             ]);
 
             DB::commit();
@@ -205,12 +237,13 @@ class SiswaController extends Controller
         }
     }
 
+    // ─── DESTROY ──────────────────────────────────────────
     public function destroy($id)
     {
         $siswa = Siswa::with('user')->findOrFail($id);
         DB::beginTransaction();
         try {
-            if ($siswa->foto) Storage::disk('public')->delete($siswa->foto);
+            $this->hapusFoto($siswa->foto);
             $userId = $siswa->user_id;
             $siswa->delete();
             User::destroy($userId);
@@ -222,6 +255,7 @@ class SiswaController extends Controller
         }
     }
 
+    // ─── IMPORT ───────────────────────────────────────────
     public function import(Request $request)
     {
         $request->validate(['file' => 'required|file|mimes:xlsx,xls,csv|max:5120']);
@@ -235,14 +269,14 @@ class SiswaController extends Controller
             $nama = trim($row['B'] ?? '');
             if (empty($nis) && empty($nama)) continue;
 
-            $kelas        = trim($row['C'] ?? '');
-            $jurusan      = trim($row['D'] ?? '');
-            $jk           = strtoupper(trim($row['E'] ?? ''));
-            $tglLahir     = trim($row['F'] ?? '');
-            $alamat       = trim($row['G'] ?? '');
-            $noHp         = trim($row['H'] ?? '');
-            $email        = trim($row['I'] ?? '');
-            $password     = trim($row['J'] ?? '');
+            $kelas    = trim($row['C'] ?? '');
+            $jurusan  = trim($row['D'] ?? '');
+            $jk       = strtoupper(trim($row['E'] ?? ''));
+            $tglLahir = trim($row['F'] ?? '');
+            $alamat   = trim($row['G'] ?? '');
+            $noHp     = trim($row['H'] ?? '');
+            $email    = trim($row['I'] ?? '');
+            $password = trim($row['J'] ?? '');
 
             $rowErrors = [];
             if (empty($nis))      $rowErrors[] = 'NIS kosong';
@@ -250,15 +284,14 @@ class SiswaController extends Controller
             if (empty($email))    $rowErrors[] = 'Email kosong';
             if (empty($password)) $rowErrors[] = 'Password kosong';
             if (!in_array($jk, ['L','P'])) $rowErrors[] = 'JK harus L/P';
-            if (Siswa::where('nis', $nis)->exists())      $rowErrors[] = 'NIS sudah ada';
-            if (User::where('email', $email)->exists())   $rowErrors[] = 'Email sudah ada';
+            if (Siswa::where('nis', $nis)->exists())    $rowErrors[] = 'NIS sudah ada';
+            if (User::where('email', $email)->exists()) $rowErrors[] = 'Email sudah ada';
 
             if (!empty($rowErrors)) {
                 $errors[] = ['row' => $i, 'nis' => $nis, 'nama' => $nama, 'error' => implode(', ', $rowErrors)];
                 continue;
             }
 
-            // Cari kelas_id dan jurusan_id
             $kelasObj   = Kelas::where('nama_kelas', $kelas)->first();
             $jurusanObj = Jurusan::where('nama_jurusan', $jurusan)->first();
 
@@ -299,7 +332,7 @@ class SiswaController extends Controller
             $sheet->getStyle(chr(65+$i).'1')->getFont()->setBold(true);
         }
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $path   = storage_path('app/public/template_import_siswa.xlsx');
+        $path   = public_path('assets/template_import_siswa.xlsx');
         $writer->save($path);
         return response()->download($path, 'template_import_siswa.xlsx')->deleteFileAfterSend(true);
     }
