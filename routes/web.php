@@ -73,14 +73,16 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Data Master: Kelas
     Route::prefix('kelas')->name('kelas.')->group(function () {
-        Route::get('/',        [KelasController::class, 'index'])->name('index');
-        Route::get('/data',    [KelasController::class, 'data'])->name('data');
-        Route::get('/jurusan', [KelasController::class, 'getJurusan'])->name('jurusan');
-        Route::get('/ruangan', [KelasController::class, 'getRuangan'])->name('ruangan');
-        Route::post('/',       [KelasController::class, 'store'])->name('store');
-        Route::get('/{id}',    [KelasController::class, 'show'])->name('show');
-        Route::put('/{id}',    [KelasController::class, 'update'])->name('update');
-        Route::delete('/{id}', [KelasController::class, 'destroy'])->name('destroy');
+        Route::get('/',               [KelasController::class, 'index'])->name('index');
+        Route::get('/data',           [KelasController::class, 'data'])->name('data');
+        Route::get('/jurusan',        [KelasController::class, 'getJurusan'])->name('jurusan');
+        Route::get('/ruangan',        [KelasController::class, 'getRuangan'])->name('ruangan');
+        // FIX: route kelas-available dipindah ke dalam prefix kelas dengan nama yang benar
+        Route::get('/available',      [KelasController::class, 'getAvailableKelas'])->name('available');
+        Route::post('/',              [KelasController::class, 'store'])->name('store');
+        Route::get('/{id}',           [KelasController::class, 'show'])->name('show');
+        Route::put('/{id}',           [KelasController::class, 'update'])->name('update');
+        Route::delete('/{id}',        [KelasController::class, 'destroy'])->name('destroy');
     });
 
     // Data Master: Jurusan
@@ -167,13 +169,13 @@ Route::middleware(['auth', 'guru'])->prefix('guru')->name('guru.')->group(functi
 // ─── PETUGAS SARANA ─────────────────────────────────────────────
 Route::middleware(['auth', 'petugas'])->prefix('petugas')->name('petugas.')->group(function () {
 
-    Route::get('/dashboard', [PetugasAspirasiController::class, 'dashboard'])->name('dashboard');
+    Route::get('/dashboard', fn() => view('dashboard.petugas'))->name('dashboard');
 
     Route::prefix('aspirasi')->name('aspirasi.')->group(function () {
         Route::get('/',                       [PetugasAspirasiController::class, 'index'])->name('index');
         Route::get('/data',                   [PetugasAspirasiController::class, 'data'])->name('data');
         Route::get('/{id}',                   [PetugasAspirasiController::class, 'show'])->name('show');
         Route::post('/progres/{aspirasi_id}', [PetugasAspirasiController::class, 'tambahProgres'])->name('progres');
-        Route::post('/status/{aspirasi_id}',  [PetugasAspirasiController::class, 'updateStatus'])->name('status'); // POST bukan PUT
+        Route::put('/status/{aspirasi_id}',   [PetugasAspirasiController::class, 'updateStatus'])->name('status');
     });
 });
