@@ -218,17 +218,27 @@ $('#formInputAspirasi').on('submit', function(e) {
         method: 'POST', data: formData, processData: false, contentType: false,
         success: function(res) {
             if (res.success) {
+                let sisa = parseInt(res.sisa_limit) || 0;
+
                 $('#aspirasAlert').removeClass('d-none alert-danger').addClass('alert alert-success')
-                    .html('<i class="bx bx-check-circle me-1"></i> ' + res.message +
-                        ' <strong>Sisa limit hari ini: ' + res.sisa_limit + '/3</strong>');
+                    .html('<i class="bx bx-check-circle me-1"></i> ' + res.message);
+
+                // Update badge sisa limit di header
+                let badgeEl = $('.badge.fs-6');
+                badgeEl.html('<iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1"></iconify-icon> Sisa hari ini: ' + sisa + '/3');
+                if (sisa <= 0) {
+                    badgeEl.removeClass('bg-soft-success text-success').addClass('bg-soft-danger text-danger');
+                    setTimeout(() => location.reload(), 1500);
+                } else if (sisa == 1) {
+                    badgeEl.removeClass('bg-soft-success text-success').addClass('bg-soft-warning text-warning');
+                }
+
                 $('#formInputAspirasi')[0].reset();
                 $('#fotoPreview').addClass('d-none');
                 $('#charCount').text('0');
                 $('#infoRuangan').addClass('d-none');
                 $('#lokasiManualInput').prop('disabled', false);
                 $('#lokasiManualWrapper').removeClass('d-none');
-                // Update badge limit
-                if (res.sisa_limit <= 0) location.reload();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         },

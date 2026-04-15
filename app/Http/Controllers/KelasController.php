@@ -24,9 +24,9 @@ class KelasController extends Controller
             $s = $request->search;
             $query->where(function ($q) use ($s) {
                 $q->where('nama_kelas',   'like', "%$s%")
-                  ->orWhere('tingkat',    'like', "%$s%")
-                  ->orWhere('tahun_ajaran','like', "%$s%")
-                  ->orWhereHas('jurusan', fn($q2) => $q2->where('nama_jurusan', 'like', "%$s%"));
+                    ->orWhere('tingkat',    'like', "%$s%")
+                    ->orWhere('tahun_ajaran', 'like', "%$s%")
+                    ->orWhereHas('jurusan', fn($q2) => $q2->where('nama_jurusan', 'like', "%$s%"));
             });
         }
 
@@ -94,8 +94,8 @@ class KelasController extends Controller
 
         // Cek duplikat nama_kelas + tahun_ajaran
         $exists = Kelas::where('nama_kelas', $request->nama_kelas)
-                       ->where('tahun_ajaran', $request->tahun_ajaran)
-                       ->exists();
+            ->where('tahun_ajaran', $request->tahun_ajaran)
+            ->exists();
         if ($exists) {
             return response()->json([
                 'success' => false,
@@ -129,9 +129,9 @@ class KelasController extends Controller
         }
 
         $exists = Kelas::where('nama_kelas', $request->nama_kelas)
-                       ->where('tahun_ajaran', $request->tahun_ajaran)
-                       ->where('id', '!=', $id)
-                       ->exists();
+            ->where('tahun_ajaran', $request->tahun_ajaran)
+            ->where('id', '!=', $id)
+            ->exists();
         if ($exists) {
             return response()->json([
                 'success' => false,
@@ -168,5 +168,37 @@ class KelasController extends Controller
     public function getRuangan()
     {
         return response()->json(Ruangan::orderBy('nama_ruangan')->get(['id', 'kode_ruangan', 'nama_ruangan', 'jenis_ruangan']));
+    }
+
+    /**
+     * FIX: Ambil kelas yang belum punya wali kelas,
+     * ATAU kelas yang wali kelasnya adalah guru dengan current_guru_id (untuk edit).
+     * Hanya kelas yang kosong wali_kelas_id yang muncul di dropdown tambah guru baru.
+     */
+    public function getAvailableKelas(Request $request)
+    {
+        $currentGuruId = $request->get('current_guru_id');
+
+        $query = Kelas::query();
+
+        if ($currentGuruId) {
+            // Mode edit: tampilkan kelas yang belum punya wali ATAU yang memang milik guru ini
+            $query->where(function ($q) use ($currentGuruId) {
+                $q->whereNull('wali_kelas_id')
+                  ->orWhere('wali_kelas_id', $currentGuruId);
+            });
+        } else {
+            // Mode tambah baru: hanya tampilkan kelas yang belum punya wali kelas
+            $query->whereNull('wali_kelas_id');
+        }
+
+        $kelas = $query->orderBy('nama_kelas')->get();
+
+        return response()->json($kelas->map(function ($k) {
+            return [
+                'id'   => $k->id,
+                'nama' => $k->nama_kelas . ' - ' . $k->tahun_ajaran,
+            ];
+        }));
     }
 }

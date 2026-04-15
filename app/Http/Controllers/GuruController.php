@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Guru;
@@ -7,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Models\Kelas;
 
 class GuruController extends Controller
 {
@@ -51,8 +53,8 @@ class GuruController extends Controller
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('nama',    'like', "%{$request->search}%")
-                  ->orWhere('nip',   'like', "%{$request->search}%")
-                  ->orWhere('jabatan','like', "%{$request->search}%");
+                    ->orWhere('nip',   'like', "%{$request->search}%")
+                    ->orWhere('jabatan', 'like', "%{$request->search}%");
             });
         }
 
@@ -84,7 +86,11 @@ class GuruController extends Controller
 
     public function show($id)
     {
-        $g = Guru::with('user')->findOrFail($id);
+        $g = Guru::with(['user', 'kelasWali'])->findOrFail($id);
+
+        // Cari kelas yang sedang dipegang guru ini
+        $kelasWali = $g->kelasWali->first();
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -101,6 +107,8 @@ class GuruController extends Controller
                 'no_hp'                => $g->no_hp ?? '',
                 'email'                => $g->user?->email ?? '-',
                 'foto'                 => $this->fotoUrl($g->foto),
+                'kelas_id'             => $kelasWali?->id,
+                'kelas_nama'           => $kelasWali ? ($kelasWali->nama_kelas . ' - ' . $kelasWali->tahun_ajaran) : null,
                 'created_at'           => $g->created_at->format('d M Y, H:i'),
                 'updated_at'           => $g->updated_at->format('d M Y, H:i'),
             ]
@@ -121,6 +129,7 @@ class GuruController extends Controller
             'foto'           => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'email'          => 'required|email|unique:tbl_users,email',
             'password'       => 'required|string|min:6',
+            'kelas_id'       => 'nullable|exists:tbl_kelas,id',
         ]);
 
         DB::beginTransaction();
@@ -136,7 +145,8 @@ class GuruController extends Controller
                 'role'     => 'guru',
             ]);
 
-            Guru::create([
+            // FIX: Simpan result Guru::create() ke $guru
+            $guru = Guru::create([
                 'user_id'        => $user->id,
                 'nip'            => $request->nip,
                 'nama'           => $request->nama,
@@ -148,6 +158,15 @@ class GuruController extends Controller
                 'no_hp'          => $request->no_hp,
                 'foto'           => $fotoFilename,
             ]);
+
+            // Assign wali kelas jika jabatan wali_kelas dan kelas dipilih
+            if ($request->jabatan === 'wali_kelas' && $request->kelas_id) {
+                // Pastikan kelas belum punya wali kelas lain
+                $kelas = Kelas::find($request->kelas_id);
+                if ($kelas && is_null($kelas->wali_kelas_id)) {
+                    $kelas->update(['wali_kelas_id' => $guru->id]);
+                }
+            }
 
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Data guru berhasil ditambahkan!']);
@@ -174,6 +193,7 @@ class GuruController extends Controller
             'foto'           => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'email'          => ['required', 'email', Rule::unique('tbl_users', 'email')->ignore($guru->user_id)],
             'password'       => 'nullable|string|min:6',
+            'kelas_id'       => 'nullable|exists:tbl_kelas,id',
         ]);
 
         DB::beginTransaction();
@@ -202,6 +222,18 @@ class GuruController extends Controller
                 'foto'           => $fotoFilename,
             ]);
 
+            // Reset wali kelas lama milik guru ini (hapus relasi lama)
+            Kelas::where('wali_kelas_id', $guru->id)->update(['wali_kelas_id' => null]);
+
+            // Assign kelas baru jika jabatan wali_kelas
+            if ($request->jabatan === 'wali_kelas' && $request->kelas_id) {
+                $kelas = Kelas::find($request->kelas_id);
+                // Pastikan kelas belum punya wali kelas lain (atau kelas ini memang milik guru ini)
+                if ($kelas && (is_null($kelas->wali_kelas_id) || $kelas->wali_kelas_id == $guru->id)) {
+                    $kelas->update(['wali_kelas_id' => $guru->id]);
+                }
+            }
+
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Data guru berhasil diupdate!']);
         } catch (\Exception $e) {
@@ -215,6 +247,9 @@ class GuruController extends Controller
         $guru = Guru::findOrFail($id);
         DB::beginTransaction();
         try {
+            // Lepas relasi wali kelas sebelum hapus
+            Kelas::where('wali_kelas_id', $guru->id)->update(['wali_kelas_id' => null]);
+
             $this->hapusFoto($guru->foto);
             User::where('id', $guru->user_id)->delete();
             $guru->delete();

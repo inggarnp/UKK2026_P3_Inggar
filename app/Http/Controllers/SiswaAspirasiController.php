@@ -8,10 +8,14 @@ use App\Models\Aspirasi;
 use App\Models\HistoryStatus;
 use App\Models\Kategori;
 use App\Models\Ruangan;
+use App\Models\Siswa;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class SiswaAspirasiController extends Controller
 {
+    const LIMIT_HARIAN = 3;
+
     // ─── DASHBOARD ────────────────────────────────────────────
     public function dashboard()
     {
@@ -21,7 +25,7 @@ class SiswaAspirasiController extends Controller
 
         $totalAspirasi = InputAspirasi::where('user_id', $userId)->count();
 
-        $countByStatus = InputAspirasi::where('user_id', $userId)
+        $countByStatus = InputAspirasi::where('tbl_input_aspirasi.user_id', $userId)
             ->join('tbl_aspirasi as a', 'a.id_pelaporan', '=', 'tbl_input_aspirasi.id')
             ->selectRaw('a.status, COUNT(*) as total')
             ->groupBy('a.status')
@@ -31,56 +35,60 @@ class SiswaAspirasiController extends Controller
         $proses   = $countByStatus['Proses']   ?? 0;
         $selesai  = $countByStatus['Selesai']  ?? 0;
 
+        $terkirimHariIni = $this->hitungTerkirimHariIni($userId);
+        $sisaLimit       = max(0, self::LIMIT_HARIAN - $terkirimHariIni);
+
+        // Fix: eager load ruangan dan kategori untuk lokasi_display dan nama_kategori
         $terbaru = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi'])
             ->where('user_id', $userId)
-            ->latest()
-            ->limit(5)
-            ->get();
+            ->latest()->limit(5)->get();
 
         return view('dashboard.siswa', compact(
-            'siswa',
-            'totalAspirasi',
-            'menunggu',
-            'proses',
-            'selesai',
-            'terbaru'
+            'siswa', 'totalAspirasi', 'menunggu', 'proses', 'selesai',
+            'terbaru', 'sisaLimit'
         ));
     }
 
     // ─── CREATE ───────────────────────────────────────────────
     public function create()
     {
-        $userId = auth()->id();
+        $userId          = auth()->id();
+        $terkirimHariIni = $this->hitungTerkirimHariIni($userId);
+        $sisaLimit       = max(0, self::LIMIT_HARIAN - $terkirimHariIni);
 
-        $jumlahHariIni = InputAspirasi::where('user_id', $userId)
-            ->whereDate('created_at', now()->toDateString())
-            ->count();
+        if ($sisaLimit <= 0) {
+            return redirect()->route('siswa.aspirasi.index')
+                ->with('error', 'Kamu sudah mencapai batas maksimal 3 aspirasi per hari. Coba lagi besok.');
+        }
 
-        $limit = 3;
-        $sisaLimit = max(0, $limit - $jumlahHariIni);
-
-        $kategoriList = Kategori::orderBy('nama_kategori')->get();
-        $ruanganList  = Ruangan::orderBy('nama_ruangan')->get();
-
-        $siswaSaksiList = \App\Models\User::where('role', 'siswa')
-            ->where('id', '!=', $userId)
-            ->get();
+        $kategoriList   = Kategori::orderBy('nama_kategori')->get();
+        $ruanganList    = Ruangan::orderBy('nama_ruangan')->get();
+        $siswaSaksiList = Siswa::with('kelas')
+            ->where('user_id', '!=', $userId)
+            ->orderBy('nama')->get();
 
         return view('pages.siswa.aspirasi.create', compact(
-            'kategoriList',
-            'ruanganList',
-            'sisaLimit',
-            'siswaSaksiList'
+            'kategoriList', 'ruanganList', 'siswaSaksiList', 'sisaLimit'
         ));
     }
 
     // ─── STORE ────────────────────────────────────────────────
     public function store(Request $request)
     {
+        $userId = auth()->id();
+
+        if ($this->hitungTerkirimHariIni($userId) >= self::LIMIT_HARIAN) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batas maksimal 3 aspirasi per hari sudah tercapai. Coba lagi besok.',
+            ], 429);
+        }
+
         $request->validate([
             'id_kategori'   => 'required|exists:tbl_kategori,id',
             'ruangan_id'    => 'nullable|exists:tbl_ruangan,id',
             'lokasi_manual' => 'nullable|string|max:150',
+            'saksi_id'      => 'nullable|exists:tbl_siswa,id',
             'keterangan'    => 'required|string|max:500',
             'foto'          => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
@@ -94,47 +102,54 @@ class SiswaAspirasiController extends Controller
 
         $fotoPath = null;
         if ($request->hasFile('foto')) {
-            $file = $request->file('foto');
-            $namaFile = time() . '_' . $file->getClientOriginalName();
-
+            $file     = $request->file('foto');
+            $namaFile = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
             $file->move(public_path('assets/images/aspirasi'), $namaFile);
-
             $fotoPath = $namaFile;
         }
 
-        // Simpan ke tbl_input_aspirasi
         $input = InputAspirasi::create([
-            'user_id'       => auth()->id(),
+            'user_id'       => $userId,
             'id_kategori'   => $request->id_kategori,
             'ruangan_id'    => $request->ruangan_id ?: null,
             'lokasi_manual' => $request->ruangan_id ? null : $request->lokasi_manual,
+            'saksi_id'      => $request->saksi_id ?: null,
+            'status_alur'   => InputAspirasi::ALUR_MENUNGGU,
             'keterangan'    => $request->keterangan,
             'foto'          => $fotoPath,
         ]);
 
-        // Simpan ke tbl_aspirasi
         $aspirasi = Aspirasi::create([
             'id_pelaporan' => $input->id,
             'status'       => 'Menunggu',
         ]);
 
-        // Simpan histori awal
         HistoryStatus::create([
             'id_aspirasi' => $aspirasi->id,
             'status_lama' => null,
             'status_baru' => 'Menunggu',
-            'keterangan'  => 'Aspirasi berhasil dikirim.',
-            'diubah_oleh' => auth()->id(),
+            'status'      => 'Menunggu',
+            'keterangan'  => 'Aspirasi berhasil dikirim, menunggu review wali kelas.',
+            'diubah_oleh' => $userId,
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Aspirasi berhasil dikirim!']);
+        $sisa = self::LIMIT_HARIAN - $this->hitungTerkirimHariIni($userId);
+
+        return response()->json([
+            'success'    => true,
+            'message'    => 'Aspirasi berhasil dikirim! Menunggu persetujuan wali kelas.',
+            'sisa_limit' => $sisa,
+        ]);
     }
 
     // ─── INDEX ────────────────────────────────────────────────
     public function index()
     {
-        $kategoriList = Kategori::orderBy('nama_kategori')->get();
-        return view('pages.siswa.aspirasi.index', compact('kategoriList'));
+        $userId          = auth()->id();
+        $terkirimHariIni = $this->hitungTerkirimHariIni($userId);
+        $sisaLimit       = max(0, self::LIMIT_HARIAN - $terkirimHariIni);
+        $kategoriList    = Kategori::orderBy('nama_kategori')->get();
+        return view('pages.siswa.aspirasi.index', compact('kategoriList', 'sisaLimit'));
     }
 
     // ─── DATA AJAX ────────────────────────────────────────────
@@ -144,43 +159,40 @@ class SiswaAspirasiController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $search  = $request->get('search', '');
         $status  = $request->get('status', '');
+        $alur    = $request->get('alur', '');
         $userId  = auth()->id();
 
-        $query = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi'])
+        $query = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi', 'saksi', 'reviewer'])
             ->where('user_id', $userId)
-            ->when($search, function ($q) use ($search) {
-                $q->where(function ($q2) use ($search) {
-                    $q2->whereHas('kategori', fn($k) => $k->where('nama_kategori', 'like', "%$search%"))
-                        ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
-                        ->orWhere('lokasi_manual', 'like', "%$search%")
-                        ->orWhere('keterangan', 'like', "%$search%");
-                });
-            })
-            ->when($status, function ($q) use ($status) {
-                $q->whereHas('aspirasi', fn($a) => $a->where('status', $status));
-            });
+            ->when($search, fn($q) => $q->where(function ($q2) use ($search) {
+                $q2->whereHas('kategori', fn($k) => $k->where('nama_kategori', 'like', "%$search%"))
+                   ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
+                   ->orWhere('lokasi_manual', 'like', "%$search%")
+                   ->orWhere('keterangan', 'like', "%$search%");
+            }))
+            ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)))
+            ->when($alur, fn($q) => $q->where('status_alur', $alur));
 
         $total = $query->count();
         $items = $query->latest()->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
-        $data = $items->map(function ($item) {
-            $aspirasi = $item->aspirasi;
-            return [
-                'id'             => $item->id,
-                'aspirasi_id'    => $aspirasi?->id,
-                'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
-                'lokasi_display' => $item->lokasi_display,
-                'kode_ruangan'   => $item->ruangan?->kode_ruangan,
-                'lantai'         => $item->ruangan?->lantai,
-                'gedung'         => $item->ruangan?->gedung,
-                'keterangan'     => $item->keterangan,
-                'foto_url'       => $item->foto_url,
-                'status'         => $aspirasi?->status ?? '-',
-                'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
-                'feedback_count' => $aspirasi?->feedback()->count() ?? 0,
-                'created_at_fmt' => $item->created_at_format,
-            ];
-        });
+        $data = $items->map(fn($item) => [
+            'id'                => $item->id,
+            'aspirasi_id'       => $item->aspirasi?->id,
+            'nama_kategori'     => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display'    => $item->lokasi_display,   // pakai accessor model
+            'keterangan'        => $item->keterangan,
+            'foto_url'          => $item->foto_url,
+            'status'            => $item->aspirasi?->status ?? '-',
+            'status_badge'      => $item->aspirasi?->status_badge ?? 'bg-secondary',
+            'status_alur'       => $item->status_alur,
+            'status_alur_label' => $item->status_alur_label,
+            'status_alur_badge' => $item->status_alur_badge,
+            'catatan_review'    => $item->catatan_review,
+            'reviewer_nama'     => $item->reviewer?->nama,
+            'saksi_nama'        => $item->saksi?->nama,
+            'created_at_fmt'    => $item->created_at_format,
+        ]);
 
         return response()->json([
             'data'         => $data,
@@ -195,51 +207,48 @@ class SiswaAspirasiController extends Controller
     public function show($id)
     {
         $item = InputAspirasi::with([
-            'kategori',
-            'ruangan',
+            'kategori', 'ruangan', 'saksi', 'reviewer',
             'aspirasi.feedback.user',
             'aspirasi.historyStatus',
             'aspirasi.progres.user',
-        ])->where('id', $id)
-            ->where('user_id', auth()->id())
-            ->first();
+        ])->where('id', $id)->where('user_id', auth()->id())->first();
 
-        if (!$item) {
-            return response()->json(['message' => 'Data tidak ditemukan.'], 404);
-        }
+        if (!$item) return response()->json(['message' => 'Data tidak ditemukan.'], 404);
 
         $aspirasi = $item->aspirasi;
 
         return response()->json([
-            'id'             => $item->id,
-            'aspirasi_id'    => $aspirasi?->id,
-            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
-            'lokasi_display' => $item->lokasi_display,
-            'kode_ruangan'   => $item->ruangan?->kode_ruangan,
-            'lantai'         => $item->ruangan?->lantai,
-            'gedung'         => $item->ruangan?->gedung,
-            'keterangan'     => $item->keterangan,
-            'foto_url'       => $item->foto_url,
-            'status'         => $aspirasi?->status ?? '-',
-            'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
-            'created_at_fmt' => $item->created_at_format,
+            'id'                => $item->id,
+            'aspirasi_id'       => $aspirasi?->id,
+            'nama_kategori'     => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display'    => $item->lokasi_display,
+            'kode_ruangan'      => $item->ruangan?->kode_ruangan,
+            'lantai'            => $item->ruangan?->lantai,
+            'gedung'            => $item->ruangan?->gedung,
+            'keterangan'        => $item->keterangan,
+            'foto_url'          => $item->foto_url,
+            'saksi_nama'        => $item->saksi?->nama ?? '-',
+            'status'            => $aspirasi?->status ?? '-',
+            'status_badge'      => $aspirasi?->status_badge ?? 'bg-secondary',
+            'status_alur'       => $item->status_alur,
+            'status_alur_label' => $item->status_alur_label,
+            'status_alur_badge' => $item->status_alur_badge,
+            'catatan_review'    => $item->catatan_review,
+            'reviewer_nama'     => $item->reviewer?->nama,
+            'reviewed_at'       => $item->reviewed_at?->locale('id')->isoFormat('D MMM Y, HH:mm'),
+            'created_at_fmt'    => $item->created_at_format,
 
-            // Feedback dari admin/petugas
             'feedback' => $aspirasi?->feedback->map(fn($f) => [
-                'isi_feedback'    => $f->isi_feedback,
-                'nama_pemberi'    => $f->user?->nama ?? '-',
-                'created_at_fmt'  => $f->created_at_format,
+                'isi_feedback'   => $f->isi_feedback,
+                'nama_pemberi'   => $f->user?->nama ?? '-',
+                'created_at_fmt' => $f->created_at_format,
             ]) ?? [],
-
-            // Histori perubahan status
             'histori' => $aspirasi?->historyStatus->map(fn($h) => [
-                'status'         => $h->status,
+                'status'         => $h->status_baru ?? $h->status,
                 'status_badge'   => $h->status_badge,
                 'keterangan'     => $h->keterangan,
                 'created_at_fmt' => $h->created_at_format,
             ]) ?? [],
-
-            // Progres perbaikan
             'progres' => $aspirasi?->progres->map(fn($p) => [
                 'keterangan_progres' => $p->keterangan_progres,
                 'nama_petugas'       => $p->user?->nama ?? '-',
@@ -251,28 +260,30 @@ class SiswaAspirasiController extends Controller
     // ─── HISTORY ─────────────────────────────────────────────
     public function history()
     {
-        $histori = HistoryStatus::with(['aspirasi.inputAspirasi.kategori', 'aspirasi.inputAspirasi.ruangan'])
-            ->whereHas('aspirasi.inputAspirasi', fn($q) => $q->where('user_id', auth()->id()))
-            ->latest()
-            ->paginate(15);
+        $histori = HistoryStatus::with([
+            'aspirasi.inputAspirasi.kategori',
+            'aspirasi.inputAspirasi.ruangan',
+        ])
+        ->whereHas('aspirasi.inputAspirasi', fn($q) => $q->where('user_id', auth()->id()))
+        ->latest()->paginate(15);
 
         return view('pages.siswa.aspirasi.history', compact('histori'));
     }
 
-    // ─── GET DETAIL RUANGAN (AJAX autofill) ───────────────────
+    // ─── GET RUANGAN AJAX ─────────────────────────────────────
     public function getRuangan($id)
     {
-        $ruangan = Ruangan::find($id);
-        if (!$ruangan) {
-            return response()->json(['message' => 'Tidak ditemukan.'], 404);
-        }
+        $r = Ruangan::find($id);
+        if (!$r) return response()->json(['message' => 'Tidak ditemukan.'], 404);
         return response()->json([
-            'id'           => $ruangan->id,
-            'nama_ruangan' => $ruangan->nama_ruangan,
-            'kode_ruangan' => $ruangan->kode_ruangan,
-            'lantai'       => $ruangan->lantai,
-            'gedung'       => $ruangan->gedung,
-            'kondisi'      => $ruangan->kondisi,
+            'id' => $r->id, 'nama_ruangan' => $r->nama_ruangan,
+            'kode_ruangan' => $r->kode_ruangan, 'lantai' => $r->lantai, 'gedung' => $r->gedung,
         ]);
+    }
+
+    private function hitungTerkirimHariIni(int $userId): int
+    {
+        return InputAspirasi::where('user_id', $userId)
+            ->whereDate('created_at', Carbon::today())->count();
     }
 }

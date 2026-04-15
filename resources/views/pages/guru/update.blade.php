@@ -15,8 +15,8 @@
                             <h6 class="mb-3 text-muted border-bottom pb-2">Data Guru</h6>
                             <div class="mb-3">
                                 <label class="form-label">NIP <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="edit_guru_nip"
-                                    name="nip" maxlength="20" required>
+                                <input type="text" class="form-control" id="edit_guru_nip" name="nip"
+                                    maxlength="20" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Nama Lengkap <span class="text-danger">*</span></label>
@@ -41,6 +41,12 @@
                                     </optgroup>
                                 </select>
                             </div>
+                            <div id="editWaliKelasWrapper" class="mb-3 d-none">
+                                <label class="form-label">Pilih Kelas</label>
+                                <select name="kelas_id" id="edit_kelas_id" class="form-select">
+                                    <option value="">-- Pilih Kelas --</option>
+                                </select>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Mata Pelajaran</label>
                                 <input type="text" class="form-control" id="edit_guru_mapel" name="mata_pelajaran">
@@ -49,20 +55,21 @@
                                 <label class="form-label">Jenis Kelamin <span class="text-danger">*</span></label>
                                 <div class="d-flex gap-3">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio"
-                                            name="jenis_kelamin" value="L" required>
+                                        <input class="form-check-input" type="radio" name="jenis_kelamin"
+                                            value="L" required>
                                         <label class="form-check-label">Laki-laki</label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio"
-                                            name="jenis_kelamin" value="P">
+                                        <input class="form-check-input" type="radio" name="jenis_kelamin"
+                                            value="P">
                                         <label class="form-check-label">Perempuan</label>
                                     </div>
                                 </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Tanggal Lahir</label>
-                                <input type="date" class="form-control" id="edit_guru_tgl_lahir" name="tanggal_lahir">
+                                <input type="date" class="form-control" id="edit_guru_tgl_lahir"
+                                    name="tanggal_lahir">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Alamat</label>
@@ -70,8 +77,8 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">No. HP</label>
-                                <input type="text" class="form-control" id="edit_guru_no_hp"
-                                    name="no_hp" maxlength="15">
+                                <input type="text" class="form-control" id="edit_guru_no_hp" name="no_hp"
+                                    maxlength="15">
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -80,8 +87,8 @@
                             </h6>
                             <div class="mb-3">
                                 <label class="form-label">Email <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" id="edit_guru_email"
-                                    name="email" required>
+                                <input type="email" class="form-control" id="edit_guru_email" name="email"
+                                    required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Password Baru</label>
@@ -101,8 +108,8 @@
                             <img id="edit_guru_foto_preview" src="" class="rounded d-none mb-2"
                                 style="width:100px;height:100px;object-fit:cover;border:2px solid #dee2e6">
                             <div class="mb-3">
-                                <input type="file" class="form-control" name="foto"
-                                    id="edit_guru_foto" accept="image/jpg,image/jpeg,image/png"
+                                <input type="file" class="form-control" name="foto" id="edit_guru_foto"
+                                    accept="image/jpg,image/jpeg,image/png"
                                     onchange="previewFoto(this, 'edit_guru_foto_preview')">
                                 <small class="text-muted">Kosongkan jika tidak ingin mengganti.</small>
                             </div>

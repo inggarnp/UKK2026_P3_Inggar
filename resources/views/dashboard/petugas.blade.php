@@ -1,21 +1,15 @@
 @extends('layouts.app')
-@section('title', 'Dashboard | Siswa')
+@section('title', 'Dashboard | Petugas Sarana')
 
 @section('content')
 <div class="row">
     <div class="col-12">
 
-        {{-- Greeting --}}
-        <div class="alert alert-primary d-flex align-items-center mb-4" role="alert">
+        <div class="alert alert-primary d-flex align-items-center mb-4">
             <iconify-icon icon="solar:user-speak-bold-duotone" class="fs-22 me-2"></iconify-icon>
             <div>
-                Selamat datang, <strong>{{ $siswa->nama ?? auth()->user()->email }}</strong>!
-                Kamu bisa menyampaikan aspirasi melalui menu di samping.
-                @if($sisaLimit <= 0)
-                    <span class="badge bg-soft-danger text-danger ms-2">Limit hari ini habis</span>
-                @else
-                    <span class="badge bg-soft-success text-success ms-2">Sisa hari ini: {{ $sisaLimit }}/3</span>
-                @endif
+                Selamat datang, <strong>{{ $petugas->nama ?? auth()->user()->email }}</strong>!
+                Kelola dan tindaklanjuti laporan aspirasi di bawah ini.
             </div>
         </div>
 
@@ -26,8 +20,8 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <p class="text-muted mb-1 small">Total Aspirasi</p>
-                                <h3 class="text-dark mb-0">{{ $totalAspirasi }}</h3>
+                                <p class="text-muted mb-1 small">Total Laporan</p>
+                                <h3 class="text-dark mb-0">{{ $total }}</h3>
                             </div>
                             <div class="avatar-md bg-soft-primary rounded">
                                 <iconify-icon icon="solar:chat-square-like-bold-duotone" class="avatar-title fs-24 text-primary"></iconify-icon>
@@ -56,7 +50,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <p class="text-muted mb-1 small">Diproses</p>
+                                <p class="text-muted mb-1 small">Sedang Diproses</p>
                                 <h3 class="text-info mb-0">{{ $proses }}</h3>
                             </div>
                             <div class="avatar-md bg-soft-info rounded">
@@ -83,107 +77,76 @@
             </div>
         </div>
 
-        {{-- Shortcut Buttons --}}
+        {{-- Shortcut --}}
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
-                <a href="{{ route('siswa.aspirasi.create') }}" class="card text-decoration-none h-100 {{ $sisaLimit <= 0 ? 'opacity-50 pe-none' : '' }}">
+            <div class="col-md-6">
+                <a href="{{ route('petugas.aspirasi.index') }}" class="card text-decoration-none h-100">
                     <div class="card-body d-flex align-items-center gap-3">
                         <div class="avatar-md bg-soft-primary rounded">
-                            <iconify-icon icon="solar:pen-new-square-bold-duotone" class="avatar-title fs-24 text-primary"></iconify-icon>
+                            <iconify-icon icon="solar:list-check-bold-duotone" class="avatar-title fs-24 text-primary"></iconify-icon>
                         </div>
                         <div>
-                            <h6 class="mb-1 text-dark">Input Aspirasi</h6>
-                            <p class="text-muted mb-0 small">
-                                {{ $sisaLimit > 0 ? 'Sampaikan masukan atau laporan baru' : 'Limit hari ini sudah habis' }}
-                            </p>
+                            <h6 class="mb-1 text-dark">Daftar Laporan Aspirasi</h6>
+                            <p class="text-muted mb-0 small">Lihat semua laporan yang perlu ditindaklanjuti</p>
                         </div>
                     </div>
                 </a>
             </div>
-            <div class="col-md-4">
-                <a href="{{ route('siswa.aspirasi.index') }}" class="card text-decoration-none h-100">
+            <div class="col-md-6">
+                <div class="card h-100">
                     <div class="card-body d-flex align-items-center gap-3">
-                        <div class="avatar-md bg-soft-info rounded">
-                            <iconify-icon icon="solar:list-bold-duotone" class="avatar-title fs-24 text-info"></iconify-icon>
+                        <div class="avatar-md bg-soft-warning rounded">
+                            <iconify-icon icon="solar:clock-circle-bold-duotone" class="avatar-title fs-24 text-warning"></iconify-icon>
                         </div>
                         <div>
-                            <h6 class="mb-1 text-dark">Daftar Aspirasi</h6>
-                            <p class="text-muted mb-0 small">Lihat semua aspirasi yang sudah dikirim</p>
+                            <h6 class="mb-1 text-dark">Perlu Ditindaklanjuti</h6>
+                            <p class="text-muted mb-0 small"><strong class="text-warning">{{ $menunggu + $proses }}</strong> laporan sedang aktif</p>
                         </div>
                     </div>
-                </a>
-            </div>
-            <div class="col-md-4">
-                <a href="{{ route('siswa.aspirasi.history') }}" class="card text-decoration-none h-100">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <div class="avatar-md bg-soft-success rounded">
-                            <iconify-icon icon="solar:history-bold-duotone" class="avatar-title fs-24 text-success"></iconify-icon>
-                        </div>
-                        <div>
-                            <h6 class="mb-1 text-dark">Histori Status</h6>
-                            <p class="text-muted mb-0 small">Pantau perkembangan aspirasimu</p>
-                        </div>
-                    </div>
-                </a>
+                </div>
             </div>
         </div>
 
-        {{-- Tabel Aspirasi Terbaru --}}
+        {{-- Tabel laporan terbaru --}}
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title mb-0">
-                    <iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1 text-primary"></iconify-icon>
-                    Aspirasi Terbaru
+                    <iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1 text-warning"></iconify-icon>
+                    Laporan Terbaru
                 </h5>
-                <a href="{{ route('siswa.aspirasi.index') }}" class="btn btn-sm btn-outline-primary">
-                    Lihat Semua
-                </a>
+                <a href="{{ route('petugas.aspirasi.index') }}" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th>Pelapor</th>
                                 <th>Kategori</th>
                                 <th>Lokasi</th>
-                                <th>Keterangan</th>
-                                <th>Status Review</th>
                                 <th>Status</th>
                                 <th>Tanggal</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($terbaru as $item)
+                            @forelse($terbaru as $item)
                                 @php
-                                    $statusMap = [
-                                        'Menunggu' => 'bg-soft-warning text-warning',
-                                        'Proses'   => 'bg-soft-info text-info',
-                                        'Selesai'  => 'bg-soft-success text-success',
-                                    ];
-                                    $alurMap = [
-                                        'menunggu_review' => ['label'=>'⏳ Menunggu Review', 'class'=>'bg-soft-warning text-warning'],
-                                        'disetujui'       => ['label'=>'✅ Disetujui', 'class'=>'bg-soft-success text-success'],
-                                        'ditolak'         => ['label'=>'❌ Ditolak', 'class'=>'bg-soft-danger text-danger'],
-                                    ];
-                                    $alur = $alurMap[$item->status_alur] ?? ['label'=>$item->status_alur,'class'=>'bg-secondary'];
-                                    $ket  = strlen($item->keterangan) > 50 ? substr($item->keterangan, 0, 50).'...' : $item->keterangan;
+                                    $statusMap = ['Menunggu'=>'bg-soft-warning text-warning','Proses'=>'bg-soft-info text-info','Selesai'=>'bg-soft-success text-success'];
+                                    $user   = $item->user;
+                                    $profil = $user?->role === 'siswa' ? $user?->siswa : $user?->guru;
                                 @endphp
                                 <tr>
+                                    <td>
+                                        <div class="fw-semibold">{{ $profil?->nama ?? $user?->email ?? '-' }}</div>
+                                        <small class="badge bg-soft-secondary text-secondary">{{ ucfirst($user?->role ?? '-') }}</small>
+                                    </td>
                                     <td><span class="badge bg-soft-secondary text-secondary">{{ $item->kategori?->nama_kategori ?? '-' }}</span></td>
                                     <td class="small">{{ $item->lokasi_display }}</td>
-                                    <td class="small text-muted">{{ $ket }}</td>
-                                    <td><span class="badge {{ $alur['class'] }} small">{{ $alur['label'] }}</span></td>
                                     <td><span class="badge {{ $statusMap[$item->aspirasi?->status] ?? 'bg-secondary' }}">{{ $item->aspirasi?->status ?? '-' }}</span></td>
-                                    <td class="small text-muted">
-                                        {{ \Carbon\Carbon::parse($item->created_at)->locale('id')->isoFormat('D MMM Y') }}
-                                    </td>
+                                    <td class="small text-muted">{{ $item->created_at_format }}</td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">
-                                        Belum ada aspirasi. <a href="{{ route('siswa.aspirasi.create') }}">Kirim sekarang</a>
-                                    </td>
-                                </tr>
+                                <tr><td colspan="5" class="text-center text-muted py-4">Belum ada laporan masuk.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

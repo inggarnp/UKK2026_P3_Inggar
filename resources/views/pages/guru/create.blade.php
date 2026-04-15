@@ -42,6 +42,12 @@
                                     </optgroup>
                                 </select>
                             </div>
+                            <div id="waliKelasWrapper" class="mb-3 d-none">
+                                <label class="form-label">Pilih Kelas</label>
+                                <select name="kelas_id" id="kelas_id" class="form-select">
+                                    <option value="">-- Pilih Kelas --</option>
+                                </select>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Mata Pelajaran</label>
                                 <input type="text" class="form-control" name="mata_pelajaran"
@@ -51,11 +57,13 @@
                                 <label class="form-label">Jenis Kelamin <span class="text-danger">*</span></label>
                                 <div class="d-flex gap-3">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="jenis_kelamin" value="L" required>
+                                        <input class="form-check-input" type="radio" name="jenis_kelamin"
+                                            value="L" required>
                                         <label class="form-check-label">Laki-laki</label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="jenis_kelamin" value="P">
+                                        <input class="form-check-input" type="radio" name="jenis_kelamin"
+                                            value="P">
                                         <label class="form-check-label">Perempuan</label>
                                     </div>
                                 </div>
@@ -66,13 +74,12 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Alamat</label>
-                                <textarea class="form-control" name="alamat" rows="2"
-                                    placeholder="Alamat lengkap"></textarea>
+                                <textarea class="form-control" name="alamat" rows="2" placeholder="Alamat lengkap"></textarea>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">No. HP</label>
-                                <input type="text" class="form-control" name="no_hp"
-                                    placeholder="08xxxxxxxxxx" maxlength="15">
+                                <input type="text" class="form-control" name="no_hp" placeholder="08xxxxxxxxxx"
+                                    maxlength="15">
                             </div>
                         </div>
                         {{-- Kanan --}}
@@ -93,7 +100,8 @@
                                 <label class="form-label">Password <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <input type="password" class="form-control" name="password"
-                                        id="add_guru_password" placeholder="Minimal 6 karakter" minlength="6" required>
+                                        id="add_guru_password" placeholder="Minimal 6 karakter" minlength="6"
+                                        required>
                                     <button class="btn btn-outline-secondary" type="button"
                                         onclick="togglePassword('add_guru_password', this)">
                                         <i class="bx bx-hide"></i>

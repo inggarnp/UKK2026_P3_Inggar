@@ -31,7 +31,7 @@ class AuthController extends Controller
         }
 
         // Cek role valid
-        $allowedRoles = ['admin', 'guru', 'siswa'];
+        $allowedRoles = ['admin', 'guru', 'siswa', 'petugas_sarana'];
         if (!in_array($user->role, $allowedRoles)) {
             return back()
                 ->withErrors(['identifier' => 'Role tidak dikenali, hubungi administrator.'])
@@ -52,6 +52,7 @@ class AuthController extends Controller
             'admin' => redirect()->route('admin.dashboard'),
             'guru'  => redirect()->route('guru.dashboard'),
             'siswa' => redirect()->route('siswa.dashboard'),
+            'petugas_sarana' => redirect()->route('petugas.dashboard'),
         };
     }
 

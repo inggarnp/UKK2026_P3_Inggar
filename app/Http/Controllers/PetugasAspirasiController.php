@@ -8,17 +8,44 @@ use App\Models\Aspirasi;
 use App\Models\HistoryStatus;
 use App\Models\Progres;
 use App\Models\Kategori;
+use App\Models\PetugasSarana;
 use Illuminate\Http\Request;
 
 class PetugasAspirasiController extends Controller
 {
-    // ─── INDEX — hanya aspirasi yang sudah disetujui guru ─────
+    private function getPetugas()
+    {
+        return PetugasSarana::where('user_id', auth()->id())->first();
+    }
+
+    // ─── DASHBOARD ────────────────────────────────────────────
+    public function dashboard()
+    {
+        $petugas = $this->getPetugas();
+
+        $total    = InputAspirasi::where('status_alur', InputAspirasi::ALUR_DISETUJUI)->count();
+        $menunggu = InputAspirasi::where('status_alur', InputAspirasi::ALUR_DISETUJUI)
+            ->whereHas('aspirasi', fn($q) => $q->where('status', 'Menunggu'))->count();
+        $proses   = InputAspirasi::where('status_alur', InputAspirasi::ALUR_DISETUJUI)
+            ->whereHas('aspirasi', fn($q) => $q->where('status', 'Proses'))->count();
+        $selesai  = InputAspirasi::where('status_alur', InputAspirasi::ALUR_DISETUJUI)
+            ->whereHas('aspirasi', fn($q) => $q->where('status', 'Selesai'))->count();
+
+        $terbaru = InputAspirasi::with(['kategori', 'ruangan', 'user.siswa', 'user.guru', 'aspirasi'])
+            ->where('status_alur', InputAspirasi::ALUR_DISETUJUI)
+            ->latest()->limit(5)->get();
+
+        return view('dashboard.petugas', compact('petugas', 'total', 'menunggu', 'proses', 'selesai', 'terbaru'));
+    }
+
+    // ─── INDEX ────────────────────────────────────────────────
     public function index()
     {
         $kategoriList = Kategori::orderBy('nama_kategori')->get();
         return view('pages.petugas.aspirasi.index', compact('kategoriList'));
     }
 
+    // ─── DATA AJAX ────────────────────────────────────────────
     public function data(Request $request)
     {
         $page     = (int) $request->get('page', 1);
@@ -32,12 +59,12 @@ class PetugasAspirasiController extends Controller
             'user.siswa', 'user.guru',
             'aspirasi', 'reviewer'
         ])
-        // Hanya yang sudah disetujui guru / dari guru langsung
         ->where('status_alur', InputAspirasi::ALUR_DISETUJUI)
         ->when($search, fn($q) => $q->where(function ($q2) use ($search) {
             $q2->whereHas('user.siswa', fn($s) => $s->where('nama', 'like', "%$search%"))
                ->orWhereHas('user.guru', fn($g) => $g->where('nama', 'like', "%$search%"))
                ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
+               ->orWhere('lokasi_manual', 'like', "%$search%")
                ->orWhere('keterangan', 'like', "%$search%");
         }))
         ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)))
@@ -48,12 +75,12 @@ class PetugasAspirasiController extends Controller
 
         $data = $items->map(function ($item) {
             $user   = $item->user;
-            $profil = $user->role === 'siswa' ? $user->siswa : $user->guru;
+            $profil = $user?->role === 'siswa' ? $user?->siswa : $user?->guru;
             return [
                 'id'             => $item->id,
                 'aspirasi_id'    => $item->aspirasi?->id,
-                'nama_pelapor'   => $profil?->nama ?? $user->email,
-                'role'           => $user->role,
+                'nama_pelapor'   => $profil?->nama ?? $user?->email ?? '-',
+                'role'           => $user?->role ?? '-',
                 'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
                 'lokasi_display' => $item->lokasi_display,
                 'keterangan'     => $item->keterangan,
@@ -72,7 +99,7 @@ class PetugasAspirasiController extends Controller
         ]);
     }
 
-    // ─── SHOW ─────────────────────────────────────────────────
+    // ─── SHOW AJAX ────────────────────────────────────────────
     public function show($id)
     {
         $item = InputAspirasi::with([
@@ -89,13 +116,13 @@ class PetugasAspirasiController extends Controller
 
         $aspirasi = $item->aspirasi;
         $user     = $item->user;
-        $profil   = $user->role === 'siswa' ? $user->siswa : $user->guru;
+        $profil   = $user?->role === 'siswa' ? $user?->siswa : $user?->guru;
 
         return response()->json([
             'id'             => $item->id,
             'aspirasi_id'    => $aspirasi?->id,
-            'nama_pelapor'   => $profil?->nama ?? $user->email,
-            'role'           => $user->role,
+            'nama_pelapor'   => $profil?->nama ?? $user?->email ?? '-',
+            'role'           => $user?->role ?? '-',
             'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
             'lokasi_display' => $item->lokasi_display,
             'kode_ruangan'   => $item->ruangan?->kode_ruangan,
@@ -130,14 +157,10 @@ class PetugasAspirasiController extends Controller
     // ─── TAMBAH PROGRES ───────────────────────────────────────
     public function tambahProgres(Request $request, $aspirasi_id)
     {
-        $request->validate([
-            'keterangan_progres' => 'required|string|max:500',
-        ]);
+        $request->validate(['keterangan_progres' => 'required|string|max:500']);
 
         $aspirasi = Aspirasi::find($aspirasi_id);
-        if (!$aspirasi) {
-            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
-        }
+        if (!$aspirasi) return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
 
         Progres::create([
             'id_aspirasi'        => $aspirasi->id,
@@ -148,7 +171,7 @@ class PetugasAspirasiController extends Controller
         return response()->json(['success' => true, 'message' => 'Progres berhasil ditambahkan.']);
     }
 
-    // ─── UPDATE STATUS (Proses / Selesai saja, tidak bisa hapus) ─
+    // ─── UPDATE STATUS — pakai POST bukan PUT untuk hindari konflik ─
     public function updateStatus(Request $request, $aspirasi_id)
     {
         $request->validate([
@@ -157,9 +180,7 @@ class PetugasAspirasiController extends Controller
         ]);
 
         $aspirasi = Aspirasi::find($aspirasi_id);
-        if (!$aspirasi) {
-            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
-        }
+        if (!$aspirasi) return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
 
         $statusLama = $aspirasi->status;
         $aspirasi->update(['status' => $request->status]);

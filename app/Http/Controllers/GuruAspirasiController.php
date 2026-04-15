@@ -23,19 +23,34 @@ class GuruAspirasiController extends Controller
     // ─── DASHBOARD GURU ───────────────────────────────────────
     public function dashboard()
     {
-        $guru   = $this->getGuru();
+        $guru   = $this->getGuru()->load('kelasWali');
         $userId = auth()->id();
 
-        // Aspirasi dari siswa di kelas yang guru ini wali-i
         $kelasIds = $guru->kelasWali->pluck('id');
 
+        // Stat dari aspirasi siswa di kelasnya
         $menungguReview = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
             ->where('status_alur', InputAspirasi::ALUR_MENUNGGU)->count();
+
+        $sudahDisetujui = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
+            ->where('status_alur', InputAspirasi::ALUR_DISETUJUI)->count();
+
+        $sudahDitolak = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
+            ->where('status_alur', InputAspirasi::ALUR_DITOLAK)->count();
 
         // Aspirasi guru sendiri
         $totalAspirasiSendiri = InputAspirasi::where('user_id', $userId)->count();
 
-        return view('dashboard.guru', compact('guru', 'menungguReview', 'totalAspirasiSendiri'));
+        // 5 aspirasi siswa yang menunggu review (untuk preview tabel di dashboard)
+        $aspirasiMenunggu = InputAspirasi::with(['kategori', 'ruangan', 'user.siswa.kelas'])
+            ->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
+            ->where('status_alur', InputAspirasi::ALUR_MENUNGGU)
+            ->latest()->limit(5)->get();
+
+        return view('dashboard.guru', compact(
+            'guru', 'menungguReview', 'sudahDisetujui', 'sudahDitolak',
+            'totalAspirasiSendiri', 'aspirasiMenunggu'
+        ));
     }
 
     // ─── REVIEW ASPIRASI SISWA ────────────────────────────────
@@ -46,6 +61,39 @@ class GuruAspirasiController extends Controller
         $guru     = $this->getGuru()->load('kelasWali');
         $kelasIds = $guru->kelasWali->pluck('id');
         return view('pages.guru.aspirasi.review', compact('guru', 'kelasIds'));
+    }
+
+    // ─── SHOW DETAIL REVIEW (AJAX) ────────────────────────────
+    public function showReview($id)
+    {
+        $guru     = $this->getGuru()->load('kelasWali');
+        $kelasIds = $guru->kelasWali->pluck('id');
+
+        $item = InputAspirasi::with([
+            'kategori', 'ruangan', 'saksi',
+            'user.siswa.kelas', 'aspirasi.historyStatus',
+        ])->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
+          ->where('id', $id)->first();
+
+        if (!$item) return response()->json(['message' => 'Tidak ditemukan.'], 404);
+
+        return response()->json([
+            'id'                => $item->id,
+            'nama_siswa'        => $item->user?->siswa?->nama ?? '-',
+            'kelas'             => $item->user?->siswa?->kelas?->nama_kelas ?? '-',
+            'nama_kategori'     => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display'    => $item->lokasi_display,
+            'kode_ruangan'      => $item->ruangan?->kode_ruangan,
+            'lantai'            => $item->ruangan?->lantai,
+            'gedung'            => $item->ruangan?->gedung,
+            'keterangan'        => $item->keterangan,
+            'foto_url'          => $item->foto_url,
+            'saksi_nama'        => $item->saksi?->nama ?? '-',
+            'status_alur'       => $item->status_alur,
+            'status_alur_label' => $item->status_alur_label,
+            'catatan_review'    => $item->catatan_review,
+            'created_at_fmt'    => $item->created_at_format,
+        ]);
     }
 
     public function reviewData(Request $request)
@@ -96,16 +144,22 @@ class GuruAspirasiController extends Controller
     public function approve(Request $request, $id)
     {
         $request->validate([
-            'catatan' => 'nullable|string|max:300',
+            'catatan'      => 'nullable|string|max:300',
+            'isi_feedback' => 'nullable|string|max:500',
         ]);
 
-        $guru = $this->getGuru()->load('kelasWali');
+        $guru     = $this->getGuru()->load('kelasWali');
         $kelasIds = $guru->kelasWali->pluck('id');
 
-        $item = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
+        $item = InputAspirasi::with('aspirasi')
+            ->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
             ->where('id', $id)
             ->where('status_alur', InputAspirasi::ALUR_MENUNGGU)
             ->firstOrFail();
+
+        if (!$item->aspirasi) {
+            return response()->json(['success' => false, 'message' => 'Data aspirasi tidak ditemukan.'], 404);
+        }
 
         $item->update([
             'status_alur'    => InputAspirasi::ALUR_DISETUJUI,
@@ -114,18 +168,25 @@ class GuruAspirasiController extends Controller
             'catatan_review' => $request->catatan ?? 'Disetujui oleh wali kelas.',
         ]);
 
-        // Update status aspirasi → Proses (lanjut ke petugas)
-        $item->aspirasi?->update(['status' => 'Proses']);
+        $item->aspirasi->update(['status' => 'Proses']);
 
-        // Catat histori
         HistoryStatus::create([
             'id_aspirasi' => $item->aspirasi->id,
             'status_lama' => 'Menunggu',
             'status_baru' => 'Proses',
             'status'      => 'Proses',
-            'keterangan'  => 'Disetujui oleh wali kelas: ' . ($request->catatan ?? '-'),
+            'keterangan'  => 'Disetujui oleh wali kelas' . ($request->catatan ? ': ' . $request->catatan : '.'),
             'diubah_oleh' => auth()->id(),
         ]);
+
+        // Simpan feedback ke siswa jika diisi
+        if ($request->isi_feedback) {
+            \App\Models\Feedback::create([
+                'id_aspirasi'  => $item->aspirasi->id,
+                'user_id'      => auth()->id(),
+                'isi_feedback' => $request->isi_feedback,
+            ]);
+        }
 
         return response()->json(['success' => true, 'message' => 'Aspirasi berhasil disetujui dan diteruskan ke Petugas Sarana.']);
     }
@@ -134,16 +195,22 @@ class GuruAspirasiController extends Controller
     public function reject(Request $request, $id)
     {
         $request->validate([
-            'catatan' => 'required|string|max:300',
+            'catatan'      => 'required|string|max:300',
+            'isi_feedback' => 'nullable|string|max:500',
         ]);
 
         $guru     = $this->getGuru()->load('kelasWali');
         $kelasIds = $guru->kelasWali->pluck('id');
 
-        $item = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
+        $item = InputAspirasi::with('aspirasi')
+            ->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
             ->where('id', $id)
             ->where('status_alur', InputAspirasi::ALUR_MENUNGGU)
             ->firstOrFail();
+
+        if (!$item->aspirasi) {
+            return response()->json(['success' => false, 'message' => 'Data aspirasi tidak ditemukan.'], 404);
+        }
 
         $item->update([
             'status_alur'    => InputAspirasi::ALUR_DITOLAK,
@@ -160,6 +227,15 @@ class GuruAspirasiController extends Controller
             'keterangan'  => 'Ditolak oleh wali kelas: ' . $request->catatan,
             'diubah_oleh' => auth()->id(),
         ]);
+
+        // Simpan feedback penolakan ke siswa jika diisi
+        if ($request->isi_feedback) {
+            \App\Models\Feedback::create([
+                'id_aspirasi'  => $item->aspirasi->id,
+                'user_id'      => auth()->id(),
+                'isi_feedback' => $request->isi_feedback,
+            ]);
+        }
 
         return response()->json(['success' => true, 'message' => 'Aspirasi ditolak dan dikembalikan ke siswa.']);
     }

@@ -2,13 +2,16 @@
 <div class="main-nav">
 
     @php
-        $dashboardRoute = match (auth()->user()->role) {
-            'admin' => 'admin.dashboard',
-            'guru'  => 'guru.dashboard',
-            'siswa' => 'siswa.dashboard',
-            default => 'login',
-        };
         $role = auth()->user()->role;
+        $dashboardRoute = match ($role) {
+            'admin'   => 'admin.dashboard',
+            'guru'    => 'guru.dashboard',
+            'siswa'   => 'siswa.dashboard',
+            'petugas_sarana' => 'petugas.dashboard',
+            default   => 'login',
+        };
+        $currentRoute = request()->route()?->getName() ?? '';
+        $isActive = fn($name) => str_starts_with($currentRoute, $name) ? 'active' : '';
     @endphp
 
     <!-- Sidebar Logo -->
@@ -23,7 +26,6 @@
         </a>
     </div>
 
-    <!-- Menu Toggle Button -->
     <button type="button" class="button-sm-hover">
         <iconify-icon icon="solar:double-alt-arrow-right-bold-duotone"></iconify-icon>
     </button>
@@ -35,59 +37,63 @@
 
             {{-- Dashboard --}}
             <li class="nav-item">
-                <a class="nav-link" href="{{ route($dashboardRoute) }}">
+                <a class="nav-link {{ $isActive($role.'.dashboard') }}" href="{{ route($dashboardRoute) }}">
                     <span class="nav-icon">
                         <iconify-icon icon="solar:widget-5-bold-duotone"></iconify-icon>
                     </span>
-                    <span class="nav-text"> Dashboard </span>
+                    <span class="nav-text">Dashboard</span>
                 </a>
             </li>
 
-            {{-- ═══════════ MENU ADMIN ═══════════ --}}
+            {{-- ══════════════ ADMIN ══════════════ --}}
             @if ($role === 'admin')
 
+                <li class="menu-title mt-2">Manajemen</li>
+
                 <li class="nav-item">
-                    <a class="nav-link menu-arrow" href="#sidebarUser" data-bs-toggle="collapse">
+                    <a class="nav-link menu-arrow {{ $isActive('admin.siswa') || $isActive('admin.guru') || $isActive('admin.petugas') ? 'active' : '' }}"
+                        href="#sidebarUser" data-bs-toggle="collapse">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:users-group-rounded-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Manajemen User </span>
+                        <span class="nav-text">Manajemen User</span>
                     </a>
-                    <div class="collapse" id="sidebarUser">
+                    <div class="collapse {{ $isActive('admin.siswa') || $isActive('admin.guru') || $isActive('admin.petugas') ? 'show' : '' }}" id="sidebarUser">
                         <ul class="nav sub-navbar-nav">
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.siswa.index') }}">Siswa</a>
+                                <a class="sub-nav-link {{ $isActive('admin.siswa') }}" href="{{ route('admin.siswa.index') }}">Siswa</a>
                             </li>
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.guru.index') }}">Guru</a>
+                                <a class="sub-nav-link {{ $isActive('admin.guru') }}" href="{{ route('admin.guru.index') }}">Guru</a>
                             </li>
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.petugas.index') }}">Petugas Sarana</a>
+                                <a class="sub-nav-link {{ $isActive('admin.petugas') }}" href="{{ route('admin.petugas.index') }}">Petugas Sarana</a>
                             </li>
                         </ul>
                     </div>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link menu-arrow" href="#sidebarKategori" data-bs-toggle="collapse">
+                    <a class="nav-link menu-arrow {{ $isActive('admin.kelas') || $isActive('admin.jurusan') || $isActive('admin.ruangan') || $isActive('admin.kategori') ? 'active' : '' }}"
+                        href="#sidebarMaster" data-bs-toggle="collapse">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:folder-with-files-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Manajemen Kategori </span>
+                        <span class="nav-text">Data Master</span>
                     </a>
-                    <div class="collapse" id="sidebarKategori">
+                    <div class="collapse {{ $isActive('admin.kelas') || $isActive('admin.jurusan') || $isActive('admin.ruangan') || $isActive('admin.kategori') ? 'show' : '' }}" id="sidebarMaster">
                         <ul class="nav sub-navbar-nav">
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.kelas.index') }}">Kelas</a>
+                                <a class="sub-nav-link {{ $isActive('admin.kelas') }}" href="{{ route('admin.kelas.index') }}">Kelas</a>
                             </li>
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.jurusan.index') }}">Jurusan</a>
+                                <a class="sub-nav-link {{ $isActive('admin.jurusan') }}" href="{{ route('admin.jurusan.index') }}">Jurusan</a>
                             </li>
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.ruangan.index') }}">Ruangan</a>
+                                <a class="sub-nav-link {{ $isActive('admin.ruangan') }}" href="{{ route('admin.ruangan.index') }}">Ruangan</a>
                             </li>
                             <li class="sub-nav-item">
-                                <a class="sub-nav-link" href="{{ route('admin.kategori.index') }}">Kategori</a>
+                                <a class="sub-nav-link {{ $isActive('admin.kategori') }}" href="{{ route('admin.kategori.index') }}">Kategori Aspirasi</a>
                             </li>
                         </ul>
                     </div>
@@ -96,79 +102,97 @@
                 <li class="menu-title mt-2">Aspirasi</li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('admin.aspirasi.index') }}">
+                    <a class="nav-link {{ $isActive('admin.aspirasi') }}" href="{{ route('admin.aspirasi.index') }}">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:chat-square-like-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Kelola Aspirasi </span>
+                        <span class="nav-text">Kelola Aspirasi</span>
                     </a>
                 </li>
 
             @endif
 
-            {{-- ═══════════ MENU GURU ═══════════ --}}
+            {{-- ══════════════ GURU ══════════════ --}}
             @if ($role === 'guru')
 
-                <li class="menu-title mt-2">Aspirasi</li>
+                <li class="menu-title mt-2">Wali Kelas</li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.aspirasi.create') }}">
+                    <a class="nav-link {{ $isActive('guru.review') }}" href="{{ route('guru.review.index') }}">
+                        <span class="nav-icon">
+                            <iconify-icon icon="solar:clipboard-check-bold-duotone"></iconify-icon>
+                        </span>
+                        <span class="nav-text">Review Aspirasi Siswa</span>
+                    </a>
+                </li>
+
+                <li class="menu-title mt-2">Aspirasi Saya</li>
+
+                <li class="nav-item">
+                    <a class="nav-link {{ $isActive('guru.aspirasi.create') }}" href="{{ route('guru.aspirasi.create') }}">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:pen-new-square-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Input Aspirasi </span>
+                        <span class="nav-text">Input Aspirasi</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.aspirasi.index') }}">
+                    <a class="nav-link {{ $isActive('guru.aspirasi.index') }}" href="{{ route('guru.aspirasi.index') }}">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:list-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Daftar Aspirasi </span>
-                    </a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.aspirasi.history') }}">
-                        <span class="nav-icon">
-                            <iconify-icon icon="solar:history-bold-duotone"></iconify-icon>
-                        </span>
-                        <span class="nav-text"> Histori Aspirasi </span>
+                        <span class="nav-text">Daftar Aspirasi</span>
                     </a>
                 </li>
 
             @endif
 
-            {{-- ═══════════ MENU SISWA ═══════════ --}}
+            {{-- ══════════════ SISWA ══════════════ --}}
             @if ($role === 'siswa')
 
                 <li class="menu-title mt-2">Aspirasi</li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.aspirasi.create') }}">
+                    <a class="nav-link {{ $isActive('siswa.aspirasi.create') }}" href="{{ route('siswa.aspirasi.create') }}">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:pen-new-square-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Input Aspirasi </span>
+                        <span class="nav-text">Input Aspirasi</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.aspirasi.index') }}">
+                    <a class="nav-link {{ $isActive('siswa.aspirasi.index') }}" href="{{ route('siswa.aspirasi.index') }}">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:list-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Daftar Aspirasi </span>
+                        <span class="nav-text">Daftar Aspirasi</span>
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.aspirasi.history') }}">
+                    <a class="nav-link {{ $isActive('siswa.aspirasi.history') }}" href="{{ route('siswa.aspirasi.history') }}">
                         <span class="nav-icon">
                             <iconify-icon icon="solar:history-bold-duotone"></iconify-icon>
                         </span>
-                        <span class="nav-text"> Histori Aspirasi </span>
+                        <span class="nav-text">Histori Aspirasi</span>
+                    </a>
+                </li>
+
+            @endif
+
+            {{-- ══════════════ PETUGAS SARANA ══════════════ --}}
+            @if ($role === 'petugas_sarana')
+
+                <li class="menu-title mt-2">Aspirasi</li>
+
+                <li class="nav-item">
+                    <a class="nav-link {{ $isActive('petugas.aspirasi') }}" href="{{ route('petugas.aspirasi.index') }}">
+                        <span class="nav-icon">
+                            <iconify-icon icon="solar:list-check-bold-duotone"></iconify-icon>
+                        </span>
+                        <span class="nav-text">Daftar Laporan</span>
                     </a>
                 </li>
 
