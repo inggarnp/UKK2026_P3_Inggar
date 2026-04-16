@@ -13,13 +13,10 @@
                 </h4>
                 <p class="text-muted mb-0">Sampaikan masukan atau laporan terkait sarana dan prasarana sekolah</p>
             </div>
-            {{-- Info limit harian --}}
-            <div class="text-end">
-                <span class="badge {{ $sisaLimit > 0 ? 'bg-soft-success text-success' : 'bg-soft-danger text-danger' }} fs-6 px-3 py-2">
-                    <iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1"></iconify-icon>
-                    Sisa hari ini: {{ $sisaLimit }}/3
-                </span>
-            </div>
+            <span class="badge {{ $sisaLimit > 0 ? 'bg-soft-success text-success' : 'bg-soft-danger text-danger' }} fs-6 px-3 py-2">
+                <iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1"></iconify-icon>
+                Sisa hari ini: {{ $sisaLimit }}/3
+            </span>
         </div>
 
         @if($sisaLimit <= 0)
@@ -32,7 +29,7 @@
         @if($sisaLimit == 1)
             <div class="alert alert-warning mb-3">
                 <iconify-icon icon="solar:danger-triangle-bold-duotone" class="me-1"></iconify-icon>
-                Perhatian: ini adalah aspirasi terakhirmu untuk hari ini.
+                Ini adalah aspirasi terakhirmu untuk hari ini.
             </div>
         @endif
 
@@ -40,10 +37,9 @@
             <div class="card-body">
                 <div id="aspirasAlert" class="d-none mb-3"></div>
 
-                {{-- Info alur --}}
                 <div class="alert alert-info mb-4">
                     <iconify-icon icon="solar:info-circle-bold-duotone" class="me-1"></iconify-icon>
-                    Aspirasi kamu akan direview oleh <strong>wali kelas</strong> terlebih dahulu sebelum diteruskan ke Petugas Sarana.
+                    Aspirasi kamu akan langsung diteruskan ke <strong>Petugas Sarana</strong> untuk ditindaklanjuti.
                 </div>
 
                 <form id="formInputAspirasi" enctype="multipart/form-data">
@@ -62,25 +58,23 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            {{-- Saksi --}}
                             <div class="mb-3">
                                 <label class="form-label">
                                     Saksi <span class="text-muted small">(opsional)</span>
                                 </label>
-                                <select class="form-select" name="saksi_id" id="selectSaksi">
-                                    <option value="">-- Pilih Saksi (siswa lain) --</option>
+                                <select class="form-select" name="saksi_id">
+                                    <option value="">-- Pilih Saksi --</option>
                                     @foreach ($siswaSaksiList as $s)
                                         <option value="{{ $s->id }}">
                                             {{ $s->nama }} — {{ $s->kelas?->nama_kelas ?? '-' }}
                                         </option>
                                     @endforeach
                                 </select>
-                                <small class="text-muted">Pilih siswa lain sebagai saksi aspirasi ini.</small>
                             </div>
                         </div>
                     </div>
 
-                    {{-- Lokasi: Dropdown Ruangan --}}
+                    {{-- Lokasi --}}
                     <div class="mb-3">
                         <label class="form-label">Lokasi / Ruangan <span class="text-danger">*</span></label>
                         <select class="form-select" name="ruangan_id" id="selectRuangan">
@@ -96,46 +90,44 @@
                         </select>
                     </div>
 
-                    {{-- Info Ruangan Autofill --}}
                     <div id="infoRuangan" class="alert alert-info d-none mb-3 py-2">
                         <div class="row g-2">
-                            <div class="col-4">
-                                <small class="text-muted d-block">Kode Ruangan</small>
-                                <strong id="infoKode">-</strong>
-                            </div>
-                            <div class="col-4">
-                                <small class="text-muted d-block">Lantai</small>
-                                <strong id="infoLantai">-</strong>
-                            </div>
-                            <div class="col-4">
-                                <small class="text-muted d-block">Gedung</small>
-                                <strong id="infoGedung">-</strong>
-                            </div>
+                            <div class="col-4"><small class="text-muted d-block">Kode Ruangan</small><strong id="infoKode">-</strong></div>
+                            <div class="col-4"><small class="text-muted d-block">Lantai</small><strong id="infoLantai">-</strong></div>
+                            <div class="col-4"><small class="text-muted d-block">Gedung</small><strong id="infoGedung">-</strong></div>
                         </div>
                     </div>
 
-                    {{-- Lokasi Manual --}}
                     <div id="lokasiManualWrapper" class="mb-3">
-                        <label class="form-label">
-                            Atau Isi Lokasi Manual
-                            <span class="text-muted small">(jika tidak ada di daftar)</span>
-                        </label>
-                        <input type="text" class="form-control" name="lokasi_manual"
-                            id="lokasiManualInput"
-                            placeholder="Contoh: Lapangan basket, Kantin, Toilet belakang..."
-                            maxlength="150">
+                        <label class="form-label">Atau Isi Lokasi Manual <span class="text-muted small">(jika tidak ada di daftar)</span></label>
+                        <input type="text" class="form-control" name="lokasi_manual" id="lokasiManualInput"
+                            placeholder="Contoh: Lapangan basket, Kantin, Toilet belakang..." maxlength="150">
                     </div>
 
                     {{-- Keterangan --}}
                     <div class="mb-3">
                         <label class="form-label">Keterangan / Deskripsi <span class="text-danger">*</span></label>
-                        <textarea class="form-control" name="keterangan" rows="5"
-                            placeholder="Jelaskan secara detail masalah atau aspirasi yang ingin kamu sampaikan..."
-                            maxlength="500" required id="keteranganInput"></textarea>
+                        <textarea class="form-control" name="keterangan" rows="4"
+                            placeholder="Jelaskan secara detail masalah atau aspirasi..." maxlength="500" required id="keteranganInput"></textarea>
                         <div class="d-flex justify-content-between mt-1">
                             <small class="text-muted">Maksimal 500 karakter.</small>
                             <small class="text-muted"><span id="charCount">0</span>/500</small>
                         </div>
+                    </div>
+
+                    {{-- Kode Verifikasi --}}
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Kode Verifikasi <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" name="kode_verifikasi"
+                            placeholder="Masukkan kode verifikasi kamu (min. 4 karakter)"
+                            maxlength="20" minlength="4" required
+                            autocomplete="off">
+                        <small class="text-muted">
+                            <iconify-icon icon="solar:lock-bold-duotone" class="me-1"></iconify-icon>
+                            Kode ini sebagai bukti bahwa aspirasi ini benar-benar dikirim oleh kamu. Bisa berupa kode apapun yang kamu ingat.
+                        </small>
                     </div>
 
                     {{-- Foto --}}
@@ -219,18 +211,17 @@ $('#formInputAspirasi').on('submit', function(e) {
         success: function(res) {
             if (res.success) {
                 let sisa = parseInt(res.sisa_limit) || 0;
-
                 $('#aspirasAlert').removeClass('d-none alert-danger').addClass('alert alert-success')
                     .html('<i class="bx bx-check-circle me-1"></i> ' + res.message);
 
-                // Update badge sisa limit di header
-                let badgeEl = $('.badge.fs-6');
-                badgeEl.html('<iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1"></iconify-icon> Sisa hari ini: ' + sisa + '/3');
+                // Update badge sisa limit
+                let badge = $('.badge.fs-6');
+                badge.html('<iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1"></iconify-icon> Sisa hari ini: ' + sisa + '/3');
                 if (sisa <= 0) {
-                    badgeEl.removeClass('bg-soft-success text-success').addClass('bg-soft-danger text-danger');
+                    badge.removeClass('bg-soft-success text-success').addClass('bg-soft-danger text-danger');
                     setTimeout(() => location.reload(), 1500);
                 } else if (sisa == 1) {
-                    badgeEl.removeClass('bg-soft-success text-success').addClass('bg-soft-warning text-warning');
+                    badge.removeClass('bg-soft-success text-success').addClass('bg-soft-warning text-warning');
                 }
 
                 $('#formInputAspirasi')[0].reset();

@@ -38,7 +38,6 @@ class SiswaAspirasiController extends Controller
         $terkirimHariIni = $this->hitungTerkirimHariIni($userId);
         $sisaLimit       = max(0, self::LIMIT_HARIAN - $terkirimHariIni);
 
-        // Fix: eager load ruangan dan kategori untuk lokasi_display dan nama_kategori
         $terbaru = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi'])
             ->where('user_id', $userId)
             ->latest()->limit(5)->get();
@@ -72,7 +71,7 @@ class SiswaAspirasiController extends Controller
         ));
     }
 
-    // ─── STORE ────────────────────────────────────────────────
+    // ─── STORE — langsung ke petugas, tidak perlu approve guru ──
     public function store(Request $request)
     {
         $userId = auth()->id();
@@ -80,17 +79,18 @@ class SiswaAspirasiController extends Controller
         if ($this->hitungTerkirimHariIni($userId) >= self::LIMIT_HARIAN) {
             return response()->json([
                 'success' => false,
-                'message' => 'Batas maksimal 3 aspirasi per hari sudah tercapai. Coba lagi besok.',
+                'message' => 'Batas maksimal 3 aspirasi per hari sudah tercapai.',
             ], 429);
         }
 
         $request->validate([
-            'id_kategori'   => 'required|exists:tbl_kategori,id',
-            'ruangan_id'    => 'nullable|exists:tbl_ruangan,id',
-            'lokasi_manual' => 'nullable|string|max:150',
-            'saksi_id'      => 'nullable|exists:tbl_siswa,id',
-            'keterangan'    => 'required|string|max:500',
-            'foto'          => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'id_kategori'      => 'required|exists:tbl_kategori,id',
+            'ruangan_id'       => 'nullable|exists:tbl_ruangan,id',
+            'lokasi_manual'    => 'nullable|string|max:150',
+            'saksi_id'         => 'nullable|exists:tbl_siswa,id',
+            'kode_verifikasi'  => 'required|string|min:4|max:20',
+            'keterangan'       => 'required|string|max:500',
+            'foto'             => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
         if (!$request->ruangan_id && !$request->lokasi_manual) {
@@ -103,20 +103,22 @@ class SiswaAspirasiController extends Controller
         $fotoPath = null;
         if ($request->hasFile('foto')) {
             $file     = $request->file('foto');
-            $namaFile = time() . '_' . preg_replace('/\s+/', '_', $file->getClientOriginalName());
+            $namaFile = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
             $file->move(public_path('assets/images/aspirasi'), $namaFile);
             $fotoPath = $namaFile;
         }
 
+        // Langsung status_alur = disetujui (tidak perlu review guru)
         $input = InputAspirasi::create([
-            'user_id'       => $userId,
-            'id_kategori'   => $request->id_kategori,
-            'ruangan_id'    => $request->ruangan_id ?: null,
-            'lokasi_manual' => $request->ruangan_id ? null : $request->lokasi_manual,
-            'saksi_id'      => $request->saksi_id ?: null,
-            'status_alur'   => InputAspirasi::ALUR_MENUNGGU,
-            'keterangan'    => $request->keterangan,
-            'foto'          => $fotoPath,
+            'user_id'          => $userId,
+            'id_kategori'      => $request->id_kategori,
+            'ruangan_id'       => $request->ruangan_id ?: null,
+            'lokasi_manual'    => $request->ruangan_id ? null : $request->lokasi_manual,
+            'saksi_id'         => $request->saksi_id ?: null,
+            'kode_verifikasi'  => $request->kode_verifikasi,
+            'status_alur'      => InputAspirasi::ALUR_DISETUJUI, // langsung disetujui
+            'keterangan'       => $request->keterangan,
+            'foto'             => $fotoPath,
         ]);
 
         $aspirasi = Aspirasi::create([
@@ -129,7 +131,7 @@ class SiswaAspirasiController extends Controller
             'status_lama' => null,
             'status_baru' => 'Menunggu',
             'status'      => 'Menunggu',
-            'keterangan'  => 'Aspirasi berhasil dikirim, menunggu review wali kelas.',
+            'keterangan'  => 'Aspirasi berhasil dikirim ke Petugas Sarana.',
             'diubah_oleh' => $userId,
         ]);
 
@@ -137,7 +139,7 @@ class SiswaAspirasiController extends Controller
 
         return response()->json([
             'success'    => true,
-            'message'    => 'Aspirasi berhasil dikirim! Menunggu persetujuan wali kelas.',
+            'message'    => 'Aspirasi berhasil dikirim ke Petugas Sarana!',
             'sisa_limit' => $sisa,
         ]);
     }
@@ -159,10 +161,9 @@ class SiswaAspirasiController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $search  = $request->get('search', '');
         $status  = $request->get('status', '');
-        $alur    = $request->get('alur', '');
         $userId  = auth()->id();
 
-        $query = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi', 'saksi', 'reviewer'])
+        $query = InputAspirasi::with(['kategori', 'ruangan', 'aspirasi', 'saksi'])
             ->where('user_id', $userId)
             ->when($search, fn($q) => $q->where(function ($q2) use ($search) {
                 $q2->whereHas('kategori', fn($k) => $k->where('nama_kategori', 'like', "%$search%"))
@@ -170,36 +171,28 @@ class SiswaAspirasiController extends Controller
                    ->orWhere('lokasi_manual', 'like', "%$search%")
                    ->orWhere('keterangan', 'like', "%$search%");
             }))
-            ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)))
-            ->when($alur, fn($q) => $q->where('status_alur', $alur));
+            ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)));
 
         $total = $query->count();
         $items = $query->latest()->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
         $data = $items->map(fn($item) => [
-            'id'                => $item->id,
-            'aspirasi_id'       => $item->aspirasi?->id,
-            'nama_kategori'     => $item->kategori?->nama_kategori ?? '-',
-            'lokasi_display'    => $item->lokasi_display,   // pakai accessor model
-            'keterangan'        => $item->keterangan,
-            'foto_url'          => $item->foto_url,
-            'status'            => $item->aspirasi?->status ?? '-',
-            'status_badge'      => $item->aspirasi?->status_badge ?? 'bg-secondary',
-            'status_alur'       => $item->status_alur,
-            'status_alur_label' => $item->status_alur_label,
-            'status_alur_badge' => $item->status_alur_badge,
-            'catatan_review'    => $item->catatan_review,
-            'reviewer_nama'     => $item->reviewer?->nama,
-            'saksi_nama'        => $item->saksi?->nama,
-            'created_at_fmt'    => $item->created_at_format,
+            'id'             => $item->id,
+            'aspirasi_id'    => $item->aspirasi?->id,
+            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display' => $item->lokasi_display,
+            'keterangan'     => $item->keterangan,
+            'foto_url'       => $item->foto_url,
+            'saksi_nama'     => $item->saksi?->nama ?? '-',
+            'status'         => $item->aspirasi?->status ?? '-',
+            'status_badge'   => $item->aspirasi?->status_badge ?? 'bg-secondary',
+            'created_at_fmt' => $item->created_at_format,
         ]);
 
         return response()->json([
-            'data'         => $data,
-            'total'        => $total,
-            'current_page' => $page,
-            'per_page'     => $perPage,
-            'last_page'    => (int) ceil($total / $perPage),
+            'data' => $data, 'total' => $total,
+            'current_page' => $page, 'per_page' => $perPage,
+            'last_page' => (int) ceil($total / $perPage),
         ]);
     }
 
@@ -207,7 +200,7 @@ class SiswaAspirasiController extends Controller
     public function show($id)
     {
         $item = InputAspirasi::with([
-            'kategori', 'ruangan', 'saksi', 'reviewer',
+            'kategori', 'ruangan', 'saksi',
             'aspirasi.feedback.user',
             'aspirasi.historyStatus',
             'aspirasi.progres.user',
@@ -218,25 +211,19 @@ class SiswaAspirasiController extends Controller
         $aspirasi = $item->aspirasi;
 
         return response()->json([
-            'id'                => $item->id,
-            'aspirasi_id'       => $aspirasi?->id,
-            'nama_kategori'     => $item->kategori?->nama_kategori ?? '-',
-            'lokasi_display'    => $item->lokasi_display,
-            'kode_ruangan'      => $item->ruangan?->kode_ruangan,
-            'lantai'            => $item->ruangan?->lantai,
-            'gedung'            => $item->ruangan?->gedung,
-            'keterangan'        => $item->keterangan,
-            'foto_url'          => $item->foto_url,
-            'saksi_nama'        => $item->saksi?->nama ?? '-',
-            'status'            => $aspirasi?->status ?? '-',
-            'status_badge'      => $aspirasi?->status_badge ?? 'bg-secondary',
-            'status_alur'       => $item->status_alur,
-            'status_alur_label' => $item->status_alur_label,
-            'status_alur_badge' => $item->status_alur_badge,
-            'catatan_review'    => $item->catatan_review,
-            'reviewer_nama'     => $item->reviewer?->nama,
-            'reviewed_at'       => $item->reviewed_at?->locale('id')->isoFormat('D MMM Y, HH:mm'),
-            'created_at_fmt'    => $item->created_at_format,
+            'id'             => $item->id,
+            'aspirasi_id'    => $aspirasi?->id,
+            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+            'lokasi_display' => $item->lokasi_display,
+            'kode_ruangan'   => $item->ruangan?->kode_ruangan,
+            'lantai'         => $item->ruangan?->lantai,
+            'gedung'         => $item->ruangan?->gedung,
+            'keterangan'     => $item->keterangan,
+            'foto_url'       => $item->foto_url,
+            'saksi_nama'     => $item->saksi?->nama ?? '-',
+            'status'         => $aspirasi?->status ?? '-',
+            'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
+            'created_at_fmt' => $item->created_at_format,
 
             'feedback' => $aspirasi?->feedback->map(fn($f) => [
                 'isi_feedback'   => $f->isi_feedback,
@@ -277,7 +264,8 @@ class SiswaAspirasiController extends Controller
         if (!$r) return response()->json(['message' => 'Tidak ditemukan.'], 404);
         return response()->json([
             'id' => $r->id, 'nama_ruangan' => $r->nama_ruangan,
-            'kode_ruangan' => $r->kode_ruangan, 'lantai' => $r->lantai, 'gedung' => $r->gedung,
+            'kode_ruangan' => $r->kode_ruangan,
+            'lantai' => $r->lantai, 'gedung' => $r->gedung,
         ]);
     }
 

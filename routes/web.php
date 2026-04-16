@@ -156,20 +156,28 @@ Route::middleware(['auth', 'guru'])->prefix('guru')->name('guru.')->group(functi
         Route::post('/reject/{id}',  [GuruAspirasiController::class, 'reject'])->name('reject');
     });
 
+    // Lihat aspirasi siswa (read only, tidak ada approve/reject)
+    Route::prefix('siswa-aspirasi')->name('siswa-aspirasi.')->group(function () {
+        Route::get('/',       [GuruAspirasiController::class, 'siswaIndex'])->name('index');
+        Route::get('/data',   [GuruAspirasiController::class, 'siswaData'])->name('data');
+        Route::get('/{id}',   [GuruAspirasiController::class, 'siswaShow'])->name('show');
+    });
+
     // Aspirasi guru sendiri
     Route::prefix('aspirasi')->name('aspirasi.')->group(function () {
         Route::get('/',       [GuruAspirasiController::class, 'index'])->name('index');
         Route::get('/data',   [GuruAspirasiController::class, 'data'])->name('data');
         Route::get('/create', [GuruAspirasiController::class, 'create'])->name('create');
         Route::post('/',      [GuruAspirasiController::class, 'store'])->name('store');
+        Route::get('/history', [GuruAspirasiController::class, 'history'])->name('history');
         Route::get('/{id}',   [GuruAspirasiController::class, 'show'])->name('show');
     });
 });
 
 // ─── PETUGAS SARANA ─────────────────────────────────────────────
-Route::middleware(['auth', 'petugas'])->prefix('petugas')->name('petugas.')->group(function () {
+Route::middleware(['auth', 'petugas_sarana'])->prefix('petugas')->name('petugas.')->group(function () {
 
-    Route::get('/dashboard', fn() => view('dashboard.petugas'))->name('dashboard');
+    Route::get('/dashboard', [PetugasAspirasiController::class, 'dashboard'])->name('dashboard'); // ✅
 
     Route::prefix('aspirasi')->name('aspirasi.')->group(function () {
         Route::get('/',                       [PetugasAspirasiController::class, 'index'])->name('index');
