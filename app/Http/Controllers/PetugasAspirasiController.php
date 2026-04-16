@@ -189,7 +189,6 @@ class PetugasAspirasiController extends Controller
             'id_aspirasi' => $aspirasi->id,
             'status_lama' => $statusLama,
             'status_baru' => $request->status,
-            'status'      => $request->status,
             'keterangan'  => $request->keterangan_progres ?? 'Status diperbarui oleh petugas sarana.',
             'diubah_oleh' => auth()->id(),
         ]);

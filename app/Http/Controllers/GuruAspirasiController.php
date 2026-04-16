@@ -212,7 +212,6 @@ class GuruAspirasiController extends Controller
             'id_aspirasi' => $aspirasi->id,
             'status_lama' => null,
             'status_baru' => 'Proses',
-            'status'      => 'Proses',
             'keterangan'  => 'Aspirasi dikirim oleh guru, langsung diteruskan ke Petugas Sarana.',
             'diubah_oleh' => auth()->id(),
         ]);

@@ -184,6 +184,6 @@ Route::middleware(['auth', 'petugas_sarana'])->prefix('petugas')->name('petugas.
         Route::get('/data',                   [PetugasAspirasiController::class, 'data'])->name('data');
         Route::get('/{id}',                   [PetugasAspirasiController::class, 'show'])->name('show');
         Route::post('/progres/{aspirasi_id}', [PetugasAspirasiController::class, 'tambahProgres'])->name('progres');
-        Route::put('/status/{aspirasi_id}',   [PetugasAspirasiController::class, 'updateStatus'])->name('status');
+        Route::post('/status/{aspirasi_id}',   [PetugasAspirasiController::class, 'updateStatus'])->name('status');
     });
 });
