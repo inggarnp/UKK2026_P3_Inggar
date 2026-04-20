@@ -1,205 +1,210 @@
 @extends('layouts.app')
-
-@section('title', 'Dashboard | Inggar ')
+@section('title', 'Dashboard | Admin')
 
 @section('content')
-<!-- Start here.... -->
-<div class="row">
-    <div class="col-xxl-5">
-        <div class="row">
-            <div class="col-12">
-                <div class="alert alert-primary text-truncate mb-3" role="alert">
-                    Selamat datang di Dashboard Admin!
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card overflow-hidden">
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="avatar-md bg-soft-primary rounded">
-                                    <iconify-icon icon="solar:cart-5-bold-duotone" class="avatar-title fs-32 text-primary"></iconify-icon>
-                                </div>
-                            </div>
-                            <div class="col-6 text-end">
-                                <p class="text-muted mb-0 text-truncate">Total Orders</p>
-                                <h3 class="text-dark mt-1 mb-0">13, 647</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer py-2 bg-light bg-opacity-50">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <span class="text-success"> <i class="bx bxs-up-arrow fs-12"></i> 2.3%</span>
-                                <span class="text-muted ms-1 fs-12">Last Week</span>
-                            </div>
-                            <a href="#!" class="text-reset fw-semibold fs-12">View More</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card overflow-hidden">
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="avatar-md bg-soft-primary rounded">
-                                    <i class="bx bx-award avatar-title fs-24 text-primary"></i>
-                                </div>
-                            </div>
-                            <div class="col-6 text-end">
-                                <p class="text-muted mb-0 text-truncate">New Leads</p>
-                                <h3 class="text-dark mt-1 mb-0">9, 526</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer py-2 bg-light bg-opacity-50">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <span class="text-success"> <i class="bx bxs-up-arrow fs-12"></i> 8.1%</span>
-                                <span class="text-muted ms-1 fs-12">Last Month</span>
-                            </div>
-                            <a href="#!" class="text-reset fw-semibold fs-12">View More</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card overflow-hidden">
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="avatar-md bg-soft-primary rounded">
-                                    <i class="bx bxs-backpack avatar-title fs-24 text-primary"></i>
-                                </div>
-                            </div>
-                            <div class="col-6 text-end">
-                                <p class="text-muted mb-0 text-truncate">Deals</p>
-                                <h3 class="text-dark mt-1 mb-0">976</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer py-2 bg-light bg-opacity-50">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <span class="text-danger"> <i class="bx bxs-down-arrow fs-12"></i> 0.3%</span>
-                                <span class="text-muted ms-1 fs-12">Last Month</span>
-                            </div>
-                            <a href="#!" class="text-reset fw-semibold fs-12">View More</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-6">
-                <div class="card overflow-hidden">
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="avatar-md bg-soft-primary rounded">
-                                    <i class="bx bx-dollar-circle avatar-title text-primary fs-24"></i>
-                                </div>
-                            </div>
-                            <div class="col-6 text-end">
-                                <p class="text-muted mb-0 text-truncate">Booked Revenue</p>
-                                <h3 class="text-dark mt-1 mb-0">$123.6k</h3>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer py-2 bg-light bg-opacity-50">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <span class="text-danger"> <i class="bx bxs-down-arrow fs-12"></i> 10.6%</span>
-                                <span class="text-muted ms-1 fs-12">Last Month</span>
-                            </div>
-                            <a href="#!" class="text-reset fw-semibold fs-12">View More</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xxl-7">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4 class="card-title">Performance</h4>
-                    <div>
-                        <button type="button" class="btn btn-sm btn-outline-light">ALL</button>
-                        <button type="button" class="btn btn-sm btn-outline-light">1M</button>
-                        <button type="button" class="btn btn-sm btn-outline-light">6M</button>
-                        <button type="button" class="btn btn-sm btn-outline-light active">1Y</button>
-                    </div>
-                </div>
-
-                <div dir="ltr">
-                    <div id="dash-performance-chart" class="apex-charts"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="row">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h4 class="card-title">Recent Orders</h4>
+
+        <div class="alert alert-primary d-flex align-items-center mb-4" role="alert">
+            <iconify-icon icon="solar:shield-user-bold-duotone" class="fs-22 me-2"></iconify-icon>
+            <div>Selamat datang di <strong>Dashboard Admin</strong>! Kelola seluruh data dan pantau aspirasi.</div>
+        </div>
+
+        {{-- ── Stat: Data Pengguna ── --}}
+        <p class="text-muted fw-semibold mb-2 small text-uppercase">
+            <iconify-icon icon="solar:users-group-rounded-bold-duotone" class="me-1"></iconify-icon>
+            Data Pengguna
+        </p>
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Total Siswa</p>
+                                <h3 class="text-dark mb-0">{{ $totalSiswa }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-primary rounded">
+                                <iconify-icon icon="solar:book-bold-duotone" class="avatar-title fs-24 text-primary"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer py-2 bg-light bg-opacity-50">
+                        <a href="{{ route('admin.siswa.index') }}" class="text-reset fw-semibold fs-12">Kelola Siswa →</a>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Total Guru</p>
+                                <h3 class="text-dark mb-0">{{ $totalGuru }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-info rounded">
+                                <iconify-icon icon="solar:user-id-bold-duotone" class="avatar-title fs-24 text-info"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer py-2 bg-light bg-opacity-50">
+                        <a href="{{ route('admin.guru.index') }}" class="text-reset fw-semibold fs-12">Kelola Guru →</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Total Petugas</p>
+                                <h3 class="text-dark mb-0">{{ $totalPetugas }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-warning rounded">
+                                <iconify-icon icon="solar:settings-bold-duotone" class="avatar-title fs-24 text-warning"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer py-2 bg-light bg-opacity-50">
+                        <a href="{{ route('admin.petugas.index') }}" class="text-reset fw-semibold fs-12">Kelola Petugas →</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Total Kelas</p>
+                                <h3 class="text-dark mb-0">{{ $totalKelas }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-success rounded">
+                                <iconify-icon icon="solar:buildings-bold-duotone" class="avatar-title fs-24 text-success"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer py-2 bg-light bg-opacity-50">
+                        <a href="{{ route('admin.kelas.index') }}" class="text-reset fw-semibold fs-12">Kelola Kelas →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ── Stat: Aspirasi ── --}}
+        <p class="text-muted fw-semibold mb-2 small text-uppercase">
+            <iconify-icon icon="solar:chart-bold-duotone" class="me-1"></iconify-icon>
+            Rekap Aspirasi
+        </p>
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Total Aspirasi</p>
+                                <h3 class="text-dark mb-0">{{ $totalAspirasi }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-primary rounded">
+                                <iconify-icon icon="solar:chat-square-like-bold-duotone" class="avatar-title fs-24 text-primary"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Menunggu</p>
+                                <h3 class="text-warning mb-0">{{ $aspirasiMenunggu }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-warning rounded">
+                                <iconify-icon icon="solar:clock-circle-bold-duotone" class="avatar-title fs-24 text-warning"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Sedang Diproses</p>
+                                <h3 class="text-info mb-0">{{ $aspirasiProses }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-info rounded">
+                                <iconify-icon icon="solar:refresh-circle-bold-duotone" class="avatar-title fs-24 text-info"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card overflow-hidden h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <p class="text-muted mb-1 small">Selesai</p>
+                                <h3 class="text-success mb-0">{{ $aspirasiSelesai }}</h3>
+                            </div>
+                            <div class="avatar-md bg-soft-success rounded">
+                                <iconify-icon icon="solar:check-circle-bold-duotone" class="avatar-title fs-24 text-success"></iconify-icon>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ── Tabel Aspirasi Terbaru ── --}}
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title mb-0">
+                    <iconify-icon icon="solar:clock-circle-bold-duotone" class="me-1 text-primary"></iconify-icon>
+                    Aspirasi Terbaru
+                </h5>
+                <a href="{{ route('admin.aspirasi.index') }}" class="btn btn-sm btn-outline-primary">Lihat Semua</a>
+            </div>
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-striped mb-0">
-                        <thead>
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
                             <tr>
-                                <th>Order ID</th>
-                                <th>Customer</th>
-                                <th>Product</th>
-                                <th>Amount</th>
+                                <th>Pelapor</th>
+                                <th>Kategori</th>
+                                <th>Lokasi</th>
                                 <th>Status</th>
-                                <th>Date</th>
+                                <th>Tanggal</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>#RB3625</td>
-                                <td>John Doe</td>
-                                <td>Product A</td>
-                                <td>$150.00</td>
-                                <td><span class="badge bg-success">Completed</span></td>
-                                <td>21 April 2024</td>
-                            </tr>
-                            <tr>
-                                <td>#RB3626</td>
-                                <td>Jane Smith</td>
-                                <td>Product B</td>
-                                <td>$200.00</td>
-                                <td><span class="badge bg-warning">Pending</span></td>
-                                <td>22 April 2024</td>
-                            </tr>
-                            <tr>
-                                <td>#RB3627</td>
-                                <td>Bob Johnson</td>
-                                <td>Product C</td>
-                                <td>$350.00</td>
-                                <td><span class="badge bg-primary">Processing</span></td>
-                                <td>23 April 2024</td>
-                            </tr>
+                            @forelse($terbaru as $item)
+                                @php
+                                    $statusMap = ['Menunggu'=>'bg-soft-warning text-warning','Proses'=>'bg-soft-info text-info','Selesai'=>'bg-soft-success text-success'];
+                                    $user   = $item->user;
+                                    $profil = $user?->role === 'siswa' ? $user?->siswa : $user?->guru;
+                                @endphp
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold small">{{ $profil?->nama ?? $user?->email ?? '-' }}</div>
+                                        <span class="badge bg-soft-secondary text-secondary">{{ ucfirst($user?->role ?? '-') }}</span>
+                                    </td>
+                                    <td><span class="badge bg-soft-secondary text-secondary">{{ $item->kategori?->nama_kategori ?? '-' }}</span></td>
+                                    <td class="small">{{ $item->lokasi_display }}</td>
+                                    <td><span class="badge {{ $statusMap[$item->aspirasi?->status] ?? 'bg-secondary' }}">{{ $item->aspirasi?->status ?? '-' }}</span></td>
+                                    <td class="small text-muted">{{ \Carbon\Carbon::parse($item->created_at)->locale('id')->isoFormat('D MMM Y') }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="text-center text-muted py-4">Belum ada aspirasi masuk.</td></tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
+
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script src="{{ asset('assets/js/vendor/apexcharts.min.js') }}"></script>
-<script>
-</script>
-
-@endpush

@@ -9,6 +9,8 @@ use App\Models\HistoryStatus;
 use App\Models\Kategori;
 use App\Models\Ruangan;
 use App\Models\Guru;
+use App\Models\User;
+use App\Models\Notifikasi;
 use Illuminate\Http\Request;
 
 class GuruAspirasiController extends Controller
@@ -21,37 +23,19 @@ class GuruAspirasiController extends Controller
     // ─── DASHBOARD ────────────────────────────────────────────
     public function dashboard()
     {
-        $guru   = $this->getGuru()->load('kelasWali');
-        $userId = auth()->id();
+        $guru     = $this->getGuru()->load('kelasWali');
+        $userId   = auth()->id();
         $kelasIds = $guru->kelasWali->pluck('id');
 
+        $totalSiswaAspirasi   = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))->count();
         $totalAspirasiSendiri = InputAspirasi::where('user_id', $userId)->count();
 
-        // Variabel yang dibutuhkan blade tapi belum ada:
-        $menungguReview = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
-            ->where('status_alur', 'menunggu') // sesuaikan dengan konstanta kamu
-            ->count();
-
-        $sudahDisetujui = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
-            ->where('status_alur', InputAspirasi::ALUR_DISETUJUI)
-            ->count();
-
-        $sudahDitolak = InputAspirasi::whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
-            ->where('status_alur', 'ditolak') // sesuaikan konstanta
-            ->count();
-
-        $aspirasiMenunggu = InputAspirasi::with(['kategori', 'ruangan', 'user.siswa.kelas'])
+        $aspirasiTerbaruSiswa = InputAspirasi::with(['kategori', 'ruangan', 'user.siswa.kelas', 'aspirasi'])
             ->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
-            ->where('status_alur', 'menunggu')
             ->latest()->limit(5)->get();
 
         return view('dashboard.guru', compact(
-            'guru',
-            'totalAspirasiSendiri',
-            'menungguReview',
-            'sudahDisetujui',
-            'sudahDitolak',
-            'aspirasiMenunggu'
+            'guru', 'totalSiswaAspirasi', 'totalAspirasiSendiri', 'aspirasiTerbaruSiswa'
         ));
     }
 
@@ -68,7 +52,6 @@ class GuruAspirasiController extends Controller
     {
         $guru     = $this->getGuru()->load('kelasWali');
         $kelasIds = $guru->kelasWali->pluck('id');
-
         $page    = (int) $request->get('page', 1);
         $perPage = (int) $request->get('per_page', 10);
         $search  = $request->get('search', '');
@@ -78,34 +61,30 @@ class GuruAspirasiController extends Controller
             ->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
             ->when($search, fn($q) => $q->where(function ($q2) use ($search) {
                 $q2->whereHas('user.siswa', fn($s) => $s->where('nama', 'like', "%$search%"))
-                    ->orWhere('keterangan', 'like', "%$search%")
-                    ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
-                    ->orWhere('lokasi_manual', 'like', "%$search%");
+                   ->orWhere('keterangan', 'like', "%$search%")
+                   ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
+                   ->orWhere('lokasi_manual', 'like', "%$search%");
             }))
             ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)));
 
         $total = $query->count();
         $items = $query->latest()->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
-        $data = $items->map(fn($item) => [
-            'id'             => $item->id,
-            'nama_siswa'     => $item->user?->siswa?->nama ?? '-',
-            'kelas'          => $item->user?->siswa?->kelas?->nama_kelas ?? '-',
-            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
-            'lokasi_display' => $item->lokasi_display,
-            'keterangan'     => $item->keterangan,
-            'foto_url'       => $item->foto_url,
-            'saksi_nama'     => $item->saksi?->nama ?? '-',
-            'status'         => $item->aspirasi?->status ?? '-',
-            'status_badge'   => $item->aspirasi?->status_badge ?? 'bg-secondary',
-            'created_at_fmt' => $item->created_at_format,
-        ]);
-
         return response()->json([
-            'data' => $data,
-            'total' => $total,
-            'current_page' => $page,
-            'per_page' => $perPage,
+            'data' => $items->map(fn($item) => [
+                'id'             => $item->id,
+                'nama_siswa'     => $item->user?->siswa?->nama ?? '-',
+                'kelas'          => $item->user?->siswa?->kelas?->nama_kelas ?? '-',
+                'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+                'lokasi_display' => $item->lokasi_display,
+                'keterangan'     => $item->keterangan,
+                'foto_url'       => $item->foto_url,
+                'saksi_nama'     => $item->saksi?->nama ?? '-',
+                'status'         => $item->aspirasi?->status ?? '-',
+                'status_badge'   => $item->aspirasi?->status_badge ?? 'bg-secondary',
+                'created_at_fmt' => $item->created_at_format,
+            ]),
+            'total' => $total, 'current_page' => $page, 'per_page' => $perPage,
             'last_page' => (int) ceil($total / $perPage),
         ]);
     }
@@ -116,56 +95,22 @@ class GuruAspirasiController extends Controller
         $kelasIds = $guru->kelasWali->pluck('id');
 
         $item = InputAspirasi::with([
-            'kategori',
-            'ruangan',
-            'saksi',
-            'user.siswa.kelas',
-            'aspirasi.historyStatus',
-            'aspirasi.feedback.user',
-            'aspirasi.progres.user',
+            'kategori', 'ruangan', 'saksi', 'user.siswa.kelas',
+            'aspirasi.historyStatus', 'aspirasi.feedback.user', 'aspirasi.progres.user',
         ])->whereHas('user.siswa', fn($q) => $q->whereIn('kelas_id', $kelasIds))
-            ->where('id', $id)->first();
+          ->where('id', $id)->first();
 
         if (!$item) return response()->json(['message' => 'Tidak ditemukan.'], 404);
 
-        $aspirasi = $item->aspirasi;
-        return response()->json([
-            'id'             => $item->id,
-            'nama_siswa'     => $item->user?->siswa?->nama ?? '-',
-            'kelas'          => $item->user?->siswa?->kelas?->nama_kelas ?? '-',
-            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
-            'lokasi_display' => $item->lokasi_display,
-            'kode_ruangan'   => $item->ruangan?->kode_ruangan,
-            'lantai'         => $item->ruangan?->lantai,
-            'gedung'         => $item->ruangan?->gedung,
-            'keterangan'     => $item->keterangan,
-            'foto_url'       => $item->foto_url,
-            'saksi_nama'     => $item->saksi?->nama ?? '-',
-            'status'         => $aspirasi?->status ?? '-',
-            'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
-            'created_at_fmt' => $item->created_at_format,
-            'histori' => $aspirasi?->historyStatus->map(fn($h) => [
-                'status'         => $h->status_baru ?? $h->status,
-                'status_badge'   => $h->status_badge,
-                'keterangan'     => $h->keterangan,
-                'created_at_fmt' => $h->created_at_format,
-            ]) ?? [],
-            'progres' => $aspirasi?->progres->map(fn($p) => [
-                'keterangan_progres' => $p->keterangan_progres,
-                'nama_petugas'       => $p->user?->nama ?? '-',
-                'created_at_fmt'     => $p->created_at_format,
-            ]) ?? [],
-        ]);
+        return response()->json($this->buildShowResponse($item));
     }
 
+    // ─── INPUT ASPIRASI GURU SENDIRI ──────────────────────────
     public function create()
     {
-        $guru         = $this->getGuru()->load('kelasWali');
-        $kelasIds     = $guru->kelasWali->pluck('id');
         $kategoriList = Kategori::orderBy('nama_kategori')->get();
         $ruanganList  = Ruangan::orderBy('nama_ruangan')->get();
-
-        return view('pages.guru.aspirasi.create', compact('guru', 'kelasIds', 'kategoriList', 'ruanganList'));
+        return view('pages.guru.aspirasi.create', compact('kategoriList', 'ruanganList'));
     }
 
     public function store(Request $request)
@@ -188,7 +133,7 @@ class GuruAspirasiController extends Controller
         $fotoPath = null;
         if ($request->hasFile('foto')) {
             $file     = $request->file('foto');
-            $namaFile = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
+            $namaFile = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('assets/images/aspirasi'), $namaFile);
             $fotoPath = $namaFile;
         }
@@ -203,18 +148,23 @@ class GuruAspirasiController extends Controller
             'foto'          => $fotoPath,
         ]);
 
+        // FIX: Status Menunggu (sama seperti siswa), bukan langsung Proses
         $aspirasi = Aspirasi::create([
             'id_pelaporan' => $input->id,
-            'status'       => 'Proses',
+            'status'       => 'Menunggu',
         ]);
 
         HistoryStatus::create([
             'id_aspirasi' => $aspirasi->id,
             'status_lama' => null,
-            'status_baru' => 'Proses',
+            'status_baru' => 'Menunggu',
+            'status'      => 'Menunggu',
             'keterangan'  => 'Aspirasi dikirim oleh guru, langsung diteruskan ke Petugas Sarana.',
             'diubah_oleh' => auth()->id(),
         ]);
+
+        // FIX: Kirim notif ke SEMUA petugas sarana
+        $this->notifPetugas($input);
 
         return response()->json(['success' => true, 'message' => 'Aspirasi berhasil dikirim ke Petugas Sarana.']);
     }
@@ -238,32 +188,28 @@ class GuruAspirasiController extends Controller
             ->where('user_id', $userId)
             ->when($search, fn($q) => $q->where(function ($q2) use ($search) {
                 $q2->whereHas('kategori', fn($k) => $k->where('nama_kategori', 'like', "%$search%"))
-                    ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
-                    ->orWhere('lokasi_manual', 'like', "%$search%")
-                    ->orWhere('keterangan', 'like', "%$search%");
+                   ->orWhereHas('ruangan', fn($r) => $r->where('nama_ruangan', 'like', "%$search%"))
+                   ->orWhere('lokasi_manual', 'like', "%$search%")
+                   ->orWhere('keterangan', 'like', "%$search%");
             }))
             ->when($status, fn($q) => $q->whereHas('aspirasi', fn($a) => $a->where('status', $status)));
 
         $total = $query->count();
         $items = $query->latest()->offset(($page - 1) * $perPage)->limit($perPage)->get();
 
-        $data = $items->map(fn($item) => [
-            'id'             => $item->id,
-            'aspirasi_id'    => $item->aspirasi?->id,
-            'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
-            'lokasi_display' => $item->lokasi_display,
-            'keterangan'     => $item->keterangan,
-            'foto_url'       => $item->foto_url,
-            'status'         => $item->aspirasi?->status ?? '-',
-            'status_badge'   => $item->aspirasi?->status_badge ?? 'bg-secondary',
-            'created_at_fmt' => $item->created_at_format,
-        ]);
-
         return response()->json([
-            'data' => $data,
-            'total' => $total,
-            'current_page' => $page,
-            'per_page' => $perPage,
+            'data' => $items->map(fn($item) => [
+                'id'             => $item->id,
+                'aspirasi_id'    => $item->aspirasi?->id,
+                'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
+                'lokasi_display' => $item->lokasi_display,
+                'keterangan'     => $item->keterangan,
+                'foto_url'       => $item->foto_url,
+                'status'         => $item->aspirasi?->status ?? '-',
+                'status_badge'   => $item->aspirasi?->status_badge ?? 'bg-secondary',
+                'created_at_fmt' => $item->created_at_format,
+            ]),
+            'total' => $total, 'current_page' => $page, 'per_page' => $perPage,
             'last_page' => (int) ceil($total / $perPage),
         ]);
     }
@@ -271,22 +217,47 @@ class GuruAspirasiController extends Controller
     public function show($id)
     {
         $item = InputAspirasi::with([
-            'kategori',
-            'ruangan',
-            'aspirasi.feedback.user',
-            'aspirasi.historyStatus',
-            'aspirasi.progres.user',
+            'kategori', 'ruangan',
+            'aspirasi.feedback.user', 'aspirasi.historyStatus', 'aspirasi.progres.user',
         ])->where('id', $id)->where('user_id', auth()->id())->first();
 
         if (!$item) return response()->json(['message' => 'Tidak ditemukan.'], 404);
 
+        return response()->json($this->buildShowResponse($item));
+    }
+
+    // ─── HISTORI ─────────────────────────────────────────────
+    public function history()
+    {
+        $histori = HistoryStatus::with([
+            'aspirasi.inputAspirasi.kategori',
+            'aspirasi.inputAspirasi.ruangan',
+        ])
+        ->whereHas('aspirasi.inputAspirasi', fn($q) => $q->where('user_id', auth()->id()))
+        ->latest()->paginate(15);
+
+        return view('pages.guru.aspirasi.history', compact('histori'));
+    }
+
+    // ─── Helper: build response show (include foto progres) ───
+    private function buildShowResponse(InputAspirasi $item): array
+    {
         $aspirasi = $item->aspirasi;
-        return response()->json([
+        $siswa    = $item->user?->siswa;
+
+        return [
             'id'             => $item->id,
+            'aspirasi_id'    => $aspirasi?->id,
+            'nama_siswa'     => $siswa?->nama ?? null,
+            'kelas'          => $siswa?->kelas?->nama_kelas ?? null,
             'nama_kategori'  => $item->kategori?->nama_kategori ?? '-',
             'lokasi_display' => $item->lokasi_display,
+            'kode_ruangan'   => $item->ruangan?->kode_ruangan,
+            'lantai'         => $item->ruangan?->lantai,
+            'gedung'         => $item->ruangan?->gedung,
             'keterangan'     => $item->keterangan,
             'foto_url'       => $item->foto_url,
+            'saksi_nama'     => $item->saksi?->nama ?? '-',
             'status'         => $aspirasi?->status ?? '-',
             'status_badge'   => $aspirasi?->status_badge ?? 'bg-secondary',
             'created_at_fmt' => $item->created_at_format,
@@ -301,24 +272,34 @@ class GuruAspirasiController extends Controller
                 'keterangan'     => $h->keterangan,
                 'created_at_fmt' => $h->created_at_format,
             ]) ?? [],
+            // FIX: include foto_url di progres
             'progres' => $aspirasi?->progres->map(fn($p) => [
                 'keterangan_progres' => $p->keterangan_progres,
+                'foto_url'           => $p->foto_url,
                 'nama_petugas'       => $p->user?->nama ?? '-',
                 'created_at_fmt'     => $p->created_at_format,
             ]) ?? [],
-        ]);
+        ];
     }
 
-    // ─── HISTORI ASPIRASI GURU ────────────────────────────────
-    public function history()
+    // ─── Helper: notif ke semua petugas sarana ────────────────
+    private function notifPetugas(InputAspirasi $input): void
     {
-        $histori = HistoryStatus::with([
-            'aspirasi.inputAspirasi.kategori',
-            'aspirasi.inputAspirasi.ruangan',
-        ])
-            ->whereHas('aspirasi.inputAspirasi', fn($q) => $q->where('user_id', auth()->id()))
-            ->latest()->paginate(15);
+        $guru     = $this->getGuru();
+        $kategori = $input->kategori?->nama_kategori ?? 'aspirasi';
+        $lokasi   = $input->lokasi_display ?? '-';
 
-        return view('pages.guru.aspirasi.history', compact('histori'));
+        // Kirim ke semua user dengan role petugas_sarana
+        $petugasUsers = User::where('role', 'petugas_sarana')->get();
+        foreach ($petugasUsers as $petugas) {
+            Notifikasi::kirim(
+                $petugas->id,
+                '📋 Laporan Baru dari Guru',
+                "Guru {$guru->nama} melaporkan masalah di {$lokasi} ({$kategori}). Segera tindaklanjuti.",
+                'warning',
+                url('/petugas/aspirasi'),
+                'solar:document-add-bold-duotone'
+            );
+        }
     }
 }

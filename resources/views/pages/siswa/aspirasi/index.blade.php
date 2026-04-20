@@ -19,7 +19,6 @@
             </a>
         </div>
 
-        {{-- Filter Status --}}
         <div class="card mb-3">
             <div class="card-body py-3">
                 <div class="row g-2 align-items-end">
@@ -48,18 +47,15 @@
             </div>
         </div>
 
-        {{-- Tabel --}}
         <div class="card">
             <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <label class="mb-0 text-muted small">Tampilkan</label>
-                        <select id="perPageSelect" class="form-select form-select-sm" style="width:80px">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                        </select>
-                        <label class="mb-0 text-muted small">data</label>
-                    </div>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <label class="mb-0 text-muted small">Tampilkan</label>
+                    <select id="perPageSelect" class="form-select form-select-sm" style="width:80px">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                    </select>
+                    <label class="mb-0 text-muted small">data</label>
                 </div>
 
                 <div class="table-responsive">
@@ -123,14 +119,9 @@ function loadData() {
     $('#tabelBody').html('<tr><td colspan="7" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div><span class="ms-2 text-muted">Memuat data...</span></td></tr>');
     $.ajax({
         url: '{{ route("siswa.aspirasi.data") }}',
-        data: {
-            page: currentPage, per_page: perPage,
-            search: searchQuery, status: $('#filterStatus').val(),
-        },
+        data: { page: currentPage, per_page: perPage, search: searchQuery, status: $('#filterStatus').val() },
         success: renderTable,
-        error: function() {
-            $('#tabelBody').html('<tr><td colspan="7" class="text-center text-danger py-3">Gagal memuat data.</td></tr>');
-        }
+        error: () => $('#tabelBody').html('<tr><td colspan="7" class="text-center text-danger py-3">Gagal memuat data.</td></tr>')
     });
 }
 
@@ -140,18 +131,15 @@ function renderTable(res) {
         $('#tableInfo').text(''); $('#paginationLinks').html(''); return;
     }
     let start = (res.current_page - 1) * res.per_page + 1, html = '';
-    let statusMap = {
-        'Menunggu': 'bg-soft-warning text-warning',
-        'Proses':   'bg-soft-info text-info',
-        'Selesai':  'bg-soft-success text-success',
-    };
+    let statusMap = { 'Menunggu':'bg-soft-warning text-warning', 'Proses':'bg-soft-info text-info', 'Selesai':'bg-soft-success text-success' };
+
     res.data.forEach(function(d, i) {
-        let ket = d.keterangan && d.keterangan.length > 55
-            ? d.keterangan.substring(0, 55) + '...' : (d.keterangan || '-');
+        let ket = d.keterangan?.length > 55 ? d.keterangan.substring(0, 55) + '...' : (d.keterangan || '-');
+        // FIX: gunakan d.lokasi_display bukan d.lokasi
         html += `<tr>
             <td class="text-muted">${start + i}</td>
             <td><span class="badge bg-soft-secondary text-secondary">${d.nama_kategori}</span></td>
-            <td class="small">${d.lokasi || '-'}</td>
+            <td class="small">${d.lokasi_display || '-'}</td>
             <td class="small text-muted">${ket}</td>
             <td><span class="badge ${statusMap[d.status] || 'bg-secondary'}">${d.status}</span></td>
             <td class="small text-muted">${d.created_at_fmt}</td>
@@ -180,79 +168,69 @@ function renderPagination(c, l) {
 }
 function goPage(p) { currentPage = p; loadData(); return false; }
 
+// FIX: render foto progres
+function buildProgresHtml(progres) {
+    if (!progres || !progres.length) return '<p class="text-muted small mb-0">Belum ada catatan progres perbaikan.</p>';
+    return progres.map(p => `
+        <div class="border-start border-success border-2 ps-3 mb-3">
+            <div class="small text-muted fw-semibold">${p.nama_petugas} • ${p.created_at_fmt}</div>
+            <p class="mb-1 small">${p.keterangan_progres}</p>
+            ${p.foto_url ? `<img src="${p.foto_url}" class="rounded img-fluid" style="max-height:120px;object-fit:cover;border:2px solid #dee2e6" alt="Foto progres">` : ''}
+        </div>`).join('');
+}
+
 function lihatDetail(id) {
     $('#detailAspirasModal').modal('show');
     $('#detailBody').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>');
-    $.get('{{ url("siswa/aspirasi") }}/' + id, function(d) {
-        let statusMap = {'Menunggu':'bg-soft-warning text-warning','Proses':'bg-soft-info text-info','Selesai':'bg-soft-success text-success'};
-        let fotoHtml = d.foto_url
-            ? `<img src="${d.foto_url}" class="img-fluid rounded mt-2" style="max-height:180px;object-fit:cover">`
-            : `<span class="text-muted small">Tidak ada foto</span>`;
 
-        let historiHtml = d.histori && d.histori.length
-            ? d.histori.map(h => {
-                let sc = {'Menunggu':'warning','Proses':'info','Selesai':'success'};
-                return `<div class="d-flex gap-2 mb-2 align-items-start">
-                    <span class="badge bg-${sc[h.status]||'secondary'} mt-1">${h.status}</span>
-                    <div>
-                        <div class="small text-muted">${h.created_at_fmt}</div>
-                        ${h.keterangan ? `<div class="small">${h.keterangan}</div>` : ''}
-                    </div>
-                </div>`;
-              }).join('')
-            : '<p class="text-muted small mb-0">Belum ada histori status.</p>';
+    $.get('{{ url("siswa/aspirasi") }}/' + id, function(d) {
+        let statusMap = { 'Menunggu':'bg-soft-warning text-warning', 'Proses':'bg-soft-info text-info', 'Selesai':'bg-soft-success text-success' };
+        let fotoHtml  = d.foto_url ? `<img src="${d.foto_url}" class="img-fluid rounded mt-2" style="max-height:180px;object-fit:cover">` : '<span class="text-muted small">Tidak ada foto</span>';
+        let ruanganInfo = (d.kode_ruangan || d.lantai || d.gedung)
+            ? `<div class="small text-muted">Kode: ${d.kode_ruangan||'-'} | Lantai: ${d.lantai||'-'} | Gedung: ${d.gedung||'-'}</div>` : '';
+
+        let feedbackHtml = d.feedback?.length
+            ? d.feedback.map(f => `<div class="border rounded p-2 mb-2"><div class="small text-muted fw-semibold">${f.nama_pemberi} • ${f.created_at_fmt}</div><p class="mb-0 small">${f.isi_feedback}</p></div>`).join('')
+            : '<p class="text-muted small mb-0">Belum ada feedback dari admin.</p>';
+
+        let historiHtml = d.histori?.length
+            ? d.histori.map(h => `<div class="d-flex gap-2 mb-2 align-items-start">
+                <span class="badge ${h.status_badge} mt-1">${h.status}</span>
+                <div><div class="small text-muted">${h.created_at_fmt}</div>
+                ${h.keterangan ? `<div class="small">${h.keterangan}</div>` : ''}</div></div>`).join('')
+            : '<p class="text-muted small mb-0">-</p>';
 
         $('#detailBody').html(`
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <small class="text-muted d-block">Kategori</small>
-                    <span class="badge bg-soft-secondary text-secondary">${d.nama_kategori}</span>
+                <div class="col-md-6">
+                    <h6 class="text-muted border-bottom pb-2 mb-3">Detail Aspirasi</h6>
+                    <div class="mb-2"><small class="text-muted d-block">Kategori</small><span class="badge bg-soft-secondary text-secondary">${d.nama_kategori}</span></div>
+                    <div class="mb-2"><small class="text-muted d-block">Lokasi</small><strong>${d.lokasi_display || '-'}</strong>${ruanganInfo}</div>
+                    <div class="mb-2"><small class="text-muted d-block">Saksi</small>${d.saksi_nama && d.saksi_nama !== '-' ? `<span class="badge bg-soft-info text-info">${d.saksi_nama}</span>` : '<span class="text-muted small">-</span>'}</div>
+                    <div class="mb-2"><small class="text-muted d-block">Keterangan</small><p class="mb-0 small">${d.keterangan || '-'}</p></div>
+                    <div class="mb-3"><small class="text-muted d-block">Status</small><span class="badge ${statusMap[d.status]||'bg-secondary'}">${d.status}</span></div>
+                    <small class="text-muted d-block mb-1">Foto Bukti Laporan</small>${fotoHtml}
                 </div>
-                <div class="col-md-6 mb-3">
-                    <small class="text-muted d-block">Status</small>
-                    <span class="badge ${statusMap[d.status]||'bg-secondary'}">${d.status}</span>
-                </div>
-                <div class="col-12 mb-3">
-                    <small class="text-muted d-block">Lokasi</small>
-                    <strong>${d.lokasi || '-'}</strong>
-                </div>
-                <div class="col-12 mb-3">
-                    <small class="text-muted d-block">Keterangan</small>
-                    <p class="mb-0">${d.keterangan || '-'}</p>
-                </div>
-                <div class="col-12 mb-3">
-                    <small class="text-muted d-block">Foto Bukti</small>
-                    ${fotoHtml}
-                </div>
-                <div class="col-12 mb-3">
-                    <small class="text-muted d-block">Feedback Admin</small>
-                    <p class="mb-0">${d.feedback || '<span class="text-muted fst-italic">Belum ada feedback</span>'}</p>
-                </div>
-                <div class="col-12">
-                    <small class="text-muted d-block mb-2">Histori Status</small>
-                    <div style="max-height:200px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:12px">
-                        ${historiHtml}
-                    </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted border-bottom pb-2 mb-3">Feedback Admin</h6>
+                    <div class="mb-4">${feedbackHtml}</div>
+
+                    <h6 class="text-muted border-bottom pb-2 mb-3">Progres Perbaikan</h6>
+                    <div class="mb-4" style="max-height:200px;overflow-y:auto">${buildProgresHtml(d.progres)}</div>
+
+                    <h6 class="text-muted border-bottom pb-2 mb-3">Histori Status</h6>
+                    <div style="max-height:180px;overflow-y:auto">${historiHtml}</div>
                 </div>
             </div>
         `);
-    }).fail(function() {
-        $('#detailBody').html('<div class="text-center text-danger py-3">Gagal memuat detail.</div>');
-    });
+    }).fail(() => $('#detailBody').html('<div class="text-center text-danger py-3">Gagal memuat detail.</div>'));
 }
 
 let st;
-$('#searchInput').on('input', function() {
-    clearTimeout(st);
-    st = setTimeout(function() { searchQuery = $('#searchInput').val(); currentPage = 1; loadData(); }, 400);
-});
-$('#filterStatus').on('change', function() { currentPage = 1; loadData(); });
+$('#searchInput').on('input', function() { clearTimeout(st); st = setTimeout(() => { searchQuery = $(this).val(); currentPage = 1; loadData(); }, 400); });
+$('#filterStatus').on('change', () => { currentPage = 1; loadData(); });
 $('#perPageSelect').on('change', function() { perPage = $(this).val(); currentPage = 1; loadData(); });
-$('#btnResetFilter').on('click', function() {
-    $('#filterStatus').val(''); $('#searchInput').val('');
-    searchQuery = ''; currentPage = 1; loadData();
-});
-
-$(document).ready(function() { loadData(); });
+$('#btnResetFilter').on('click', function() { $('#filterStatus').val(''); $('#searchInput').val(''); searchQuery = ''; currentPage = 1; loadData(); });
+$(document).ready(() => loadData());
 </script>
 @endpush

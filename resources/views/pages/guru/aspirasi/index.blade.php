@@ -138,7 +138,7 @@ function renderTable(res) {
         html += `<tr>
             <td class="text-muted">${start + i}</td>
             <td><span class="badge bg-soft-secondary text-secondary">${d.nama_kategori}</span></td>
-            <td class="small">${d.lokasi_display}</td>
+            <td class="small">${d.lokasi_display || '-'}</td>
             <td class="small text-muted">${ket}</td>
             <td><span class="badge ${statusMap[d.status] || 'bg-secondary'}">${d.status}</span></td>
             <td class="small text-muted">${d.created_at_fmt}</td>
@@ -167,41 +167,48 @@ function renderPagination(c, l) {
 }
 function goPage(p) { currentPage = p; loadData(); return false; }
 
+function buildProgresHtml(progres) {
+    if (!progres || !progres.length) return '<p class="text-muted small mb-0">Belum ada catatan progres perbaikan.</p>';
+    return progres.map(p => `
+        <div class="border-start border-success border-2 ps-3 mb-3">
+            <div class="small text-muted fw-semibold">${p.nama_petugas} • ${p.created_at_fmt}</div>
+            <p class="mb-1 small">${p.keterangan_progres}</p>
+            ${p.foto_url ? `<img src="${p.foto_url}" class="rounded img-fluid" style="max-height:120px;object-fit:cover;border:2px solid #dee2e6" alt="Foto progres">` : ''}
+        </div>`).join('');
+}
+
 function lihatDetail(id) {
     $('#detailAspirasModal').modal('show');
     $('#detailBody').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>');
+
     $.get('{{ url("guru/aspirasi") }}/' + id, function(d) {
-        let statusMap = {'Menunggu':'bg-soft-warning text-warning','Proses':'bg-soft-info text-info','Selesai':'bg-soft-success text-success'};
-        let fotoHtml  = d.foto_url ? `<img src="${d.foto_url}" class="img-fluid rounded mt-2" style="max-height:180px">` : '<span class="text-muted small">Tidak ada foto</span>';
+        let statusMap = { 'Menunggu':'bg-soft-warning text-warning', 'Proses':'bg-soft-info text-info', 'Selesai':'bg-soft-success text-success' };
+        let fotoHtml  = d.foto_url ? `<img src="${d.foto_url}" class="img-fluid rounded mt-2" style="max-height:180px;object-fit:cover">` : '<span class="text-muted small">Tidak ada foto</span>';
 
         let feedbackHtml = d.feedback?.length
             ? d.feedback.map(f => `<div class="border rounded p-2 mb-2"><div class="small text-muted">${f.nama_pemberi} • ${f.created_at_fmt}</div><p class="mb-0 small">${f.isi_feedback}</p></div>`).join('')
             : '<p class="text-muted small mb-0">Belum ada feedback.</p>';
 
-        let progresHtml = d.progres?.length
-            ? d.progres.map(p => `<div class="border rounded p-2 mb-2"><div class="small text-muted">${p.nama_petugas} • ${p.created_at_fmt}</div><p class="mb-0 small">${p.keterangan_progres}</p></div>`).join('')
-            : '<p class="text-muted small mb-0">Belum ada progres perbaikan.</p>';
-
         let historiHtml = d.histori?.length
             ? d.histori.map(h => `<div class="d-flex gap-2 mb-2"><span class="badge ${h.status_badge} mt-1">${h.status}</span><div><div class="small text-muted">${h.created_at_fmt}</div>${h.keterangan ? `<div class="small">${h.keterangan}</div>` : ''}</div></div>`).join('')
-            : '<p class="text-muted small mb-0">Belum ada histori.</p>';
+            : '<p class="text-muted small mb-0">-</p>';
 
         $('#detailBody').html(`
             <div class="row">
                 <div class="col-md-6">
                     <h6 class="text-muted border-bottom pb-2 mb-3">Detail Aspirasi</h6>
                     <div class="mb-2"><small class="text-muted d-block">Kategori</small><span class="badge bg-soft-secondary text-secondary">${d.nama_kategori}</span></div>
-                    <div class="mb-2"><small class="text-muted d-block">Lokasi</small><strong>${d.lokasi_display}</strong></div>
-                    <div class="mb-2"><small class="text-muted d-block">Keterangan</small><p class="mb-0">${d.keterangan}</p></div>
+                    <div class="mb-2"><small class="text-muted d-block">Lokasi</small><strong>${d.lokasi_display || '-'}</strong></div>
+                    <div class="mb-2"><small class="text-muted d-block">Keterangan</small><p class="mb-0">${d.keterangan || '-'}</p></div>
                     <div class="mb-2"><small class="text-muted d-block">Status</small><span class="badge ${statusMap[d.status]||'bg-secondary'}">${d.status}</span></div>
-                    <div class="mb-2"><small class="text-muted d-block">Tanggal</small><span>${d.created_at_fmt}</span></div>
-                    <div class="mb-3"><small class="text-muted d-block">Foto Bukti</small>${fotoHtml}</div>
+                    <div class="mb-3"><small class="text-muted d-block">Tanggal</small><span>${d.created_at_fmt}</span></div>
+                    <small class="text-muted d-block mb-1">Foto Bukti</small>${fotoHtml}
                 </div>
                 <div class="col-md-6">
                     <h6 class="text-muted border-bottom pb-2 mb-3">Feedback</h6>
-                    <div class="mb-3">${feedbackHtml}</div>
+                    <div class="mb-4">${feedbackHtml}</div>
                     <h6 class="text-muted border-bottom pb-2 mb-3">Progres Perbaikan</h6>
-                    <div class="mb-3">${progresHtml}</div>
+                    <div class="mb-4" style="max-height:200px;overflow-y:auto">${buildProgresHtml(d.progres)}</div>
                     <h6 class="text-muted border-bottom pb-2 mb-3">Histori Status</h6>
                     <div style="max-height:160px;overflow-y:auto">${historiHtml}</div>
                 </div>
@@ -215,7 +222,6 @@ $('#searchInput').on('input', function() { clearTimeout(st); st = setTimeout(() 
 $('#filterStatus').on('change', () => { currentPage = 1; loadData(); });
 $('#perPageSelect').on('change', function() { perPage = $(this).val(); currentPage = 1; loadData(); });
 $('#btnResetFilter').on('click', function() { $('#filterStatus').val(''); $('#searchInput').val(''); searchQuery = ''; currentPage = 1; loadData(); });
-
 $(document).ready(() => loadData());
 </script>
 @endpush

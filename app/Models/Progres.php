@@ -12,9 +12,9 @@ class Progres extends Model
         'id_aspirasi',
         'user_id',
         'keterangan_progres',
+        'foto',
     ];
 
-    // ─── Relasi ───────────────────────────────────────────
     public function aspirasi()
     {
         return $this->belongsTo(Aspirasi::class, 'id_aspirasi');
@@ -25,11 +25,17 @@ class Progres extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    // ─── Accessor ─────────────────────────────────────────
     public function getCreatedAtFormatAttribute(): string
     {
         return $this->created_at
             ? $this->created_at->locale('id')->isoFormat('D MMM Y, HH:mm')
             : '-';
+    }
+
+    public function getFotoUrlAttribute(): ?string
+    {
+        return $this->foto
+            ? asset('assets/images/progres/' . $this->foto)
+            : null;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Guru; // ⬅️ tambahin ini
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -38,22 +39,31 @@ class AuthController extends Controller
                 ->withInput();
         }
 
-        // Login session
+        // Login
         Auth::login($user);
 
-        // Simpan ke session
         session([
             'user_role'  => $user->role,
             'user_email' => $user->email,
         ]);
 
-        // Redirect sesuai role
         return match ($user->role) {
             'admin' => redirect()->route('admin.dashboard'),
-            'guru'  => redirect()->route('guru.dashboard'),
+            'guru'  => $this->redirectGuru(), 
             'siswa' => redirect()->route('siswa.dashboard'),
             'petugas_sarana' => redirect()->route('petugas.dashboard'),
         };
+    }
+
+    private function redirectGuru()
+    {
+        $guru = Guru::where('user_id', auth()->id())->first();
+
+        if ($guru && $guru->jabatan === 'kepala_sekolah') {
+            return redirect()->route('kepala_sekolah.dashboard');
+        }
+
+        return redirect()->route('guru.dashboard');
     }
 
     public function logout(Request $request)
